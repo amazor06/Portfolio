@@ -24,7 +24,7 @@ function AppBanner() {
 					}}
 					className="font-general-semibold text-2xl lg:text-3xl xl:text-4xl text-center sm:text-left text-ternary-dark dark:text-primary-light uppercase"
 				>
-					Hi, Iam Stoman
+					Ariel Mazor
 				</motion.h1>
 				<motion.p
 					initial={{ opacity: 0 }}
@@ -56,7 +56,7 @@ function AppBanner() {
 					>
 						<FiArrowDownCircle className="ml-0 sm:ml-1 mr-2 sm:mr-3 h-5 w-5 sn:w-6 sm:h-6 duration-100"></FiArrowDownCircle>
 						<span className="text-sm sm:text-lg duration-100">
-							Download CV
+							Resume
 						</span>
 					</a>
 				</motion.div>

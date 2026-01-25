@@ -127,6 +127,7 @@ function AppHeader() {
 							Contact
 						</Link>
 					</div>
+
 					<div className="border-t-2 pt-3 sm:pt-0 sm:border-t-0 border-primary-light dark:border-secondary-dark">
 						<button
 							onClick={showHireMeModal}
@@ -140,6 +141,18 @@ function AppHeader() {
 
 				{/* Header links large screen */}
 				<div className="font-general-medium hidden m-0 sm:ml-4 mt-5 sm:mt-3 sm:flex p-5 sm:p-0 justify-center items-center shadow-lg sm:shadow-none">
+					<div
+						className="block text-left text-lg font-medium text-primary-dark dark:text-ternary-light hover:text-secondary-dark dark:hover:text-secondary-light  sm:mx-4 mb-2 sm:py-2"
+						aria-label="Contact"
+					>
+						<Link href="/contact">Education</Link>
+					</div>
+					<div
+						className="block text-left text-lg font-medium text-primary-dark dark:text-ternary-light hover:text-secondary-dark dark:hover:text-secondary-light  sm:mx-4 mb-2 sm:py-2"
+						aria-label="Contact"
+					>
+						<Link href="/contact">Experience</Link>
+					</div>
 					<div
 						className="block text-left text-lg font-medium text-primary-dark dark:text-ternary-light hover:text-secondary-dark dark:hover:text-secondary-light  sm:mx-4 mb-2 sm:py-2"
 						aria-label="Projects"
@@ -160,6 +173,7 @@ function AppHeader() {
 						<Link href="/contact">Contact</Link>
 					</div>
 				</div>
+
 
 				{/* Header right section buttons */}
 				<div className="hidden sm:flex justify-between items-center flex-col md:flex-row">

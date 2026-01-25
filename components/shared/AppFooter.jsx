@@ -1,38 +1,22 @@
 import {
 	FiGithub,
-	FiTwitter,
 	FiLinkedin,
-	FiGlobe,
-	FiYoutube,
 } from 'react-icons/fi';
 import AppFooterCopyright from './AppFooterCopyright';
 
 const socialLinks = [
 	{
 		id: 1,
-		icon: <FiGlobe />,
-		url: 'https://www.stoman.me/',
+		icon: <FiGithub />,
+		url: 'https://github.com/amazor06',
 	},
+
 	{
 		id: 2,
-		icon: <FiGithub />,
-		url: 'https://github.com/realstoman',
-	},
-	{
-		id: 3,
-		icon: <FiTwitter />,
-		url: 'https://twitter.com/realstoman',
-	},
-	{
-		id: 4,
 		icon: <FiLinkedin />,
-		url: 'https://www.linkedin.com/in/realstoman',
+		url: 'https://www.linkedin.com/in/amazor28',
 	},
-	{
-		id: 5,
-		icon: <FiYoutube />,
-		url: 'https://www.youtube.com/c/realstoman',
-	},
+
 ];
 
 function AppFooter() {
@@ -42,7 +26,7 @@ function AppFooter() {
 				{/* Footer social links */}
 				<div className="font-general-regular flex flex-col justify-center items-center mb-12 sm:mb-28">
 					<p className="text-3xl sm:text-4xl text-primary-dark dark:text-primary-light mb-5">
-						Follow me
+						Let's Connect!
 					</p>
 					<ul className="flex gap-4 sm:gap-8">
 						{socialLinks.map((link) => (
@@ -60,7 +44,6 @@ function AppFooter() {
 					</ul>
 				</div>
 
-				<AppFooterCopyright />
 			</div>
 		</div>
 	);
