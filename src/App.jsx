@@ -1,5 +1,5 @@
 import { useState } from "react";
-import "./App.css";
+import Room from "./components/Room";
 import {
   personal,
   about,
@@ -10,25 +10,26 @@ import {
   skills,
   nav,
 } from "./data";
+import "./App.css";
 
-// ─── Navigation ─────────────────────────────────────────────
+/* ─── Navigation ──────────────────────────────────────────── */
 function Nav() {
   const [open, setOpen] = useState(false);
 
   return (
     <nav className="nav">
       <div className="nav-inner">
-        <a href="#" className="nav-name">
+        <a href="#" className="nav-logo">
           {personal.name.split(" ")[0]}
         </a>
         <button
           className="nav-toggle"
           onClick={() => setOpen(!open)}
-          aria-label="Toggle navigation"
+          aria-label="Toggle menu"
         >
-          {open ? "✕" : "☰"}
+          <span className={`hamburger ${open ? "open" : ""}`} />
         </button>
-        <ul className={`nav-links${open ? " open" : ""}`}>
+        <ul className={`nav-links ${open ? "open" : ""}`}>
           {nav.map((item) => (
             <li key={item.href}>
               <a href={item.href} onClick={() => setOpen(false)}>
@@ -42,91 +43,73 @@ function Nav() {
   );
 }
 
-// ─── Hero ───────────────────────────────────────────────────
+/* ─── Hero with 3D Room ───────────────────────────────────── */
 function Hero() {
   return (
-    <section className="hero">
-      <div className="container">
-        <div className="hero-content">
-          <h1 className="hero-name">{personal.name}</h1>
-          <p className="hero-tagline">{personal.tagline}</p>
-          <div className="hero-meta">
-            <span>Computer Science & Engineering Physics</span>
-            <span className="separator">·</span>
-            <span>Santa Clara University '28</span>
-          </div>
-        </div>
+    <section className="hero" id="home">
+      <div className="hero-text">
+        <h1 className="hero-name">{personal.name}</h1>
+        <p className="hero-tagline">{personal.tagline}</p>
       </div>
+      <Room />
     </section>
   );
 }
 
-// ─── About ──────────────────────────────────────────────────
+/* ─── About ────────────────────────────────────────────────── */
 function About() {
   return (
-    <section id="about">
+    <section className="section" id="about">
       <div className="container">
-        <div className="section-label">About</div>
-        <div className="about-content">
+        <div className="section-eyebrow">About</div>
+        <div className="about-grid">
           <div className="about-text">
             {about.paragraphs.map((p, i) => (
               <p key={i}>{p}</p>
             ))}
           </div>
-          <div className="about-sidebar">
-            <div className="about-sidebar-title">Honors & Fellowships</div>
-            <ul className="about-honors">
+          <aside className="about-sidebar">
+            <div className="sidebar-label">Honors & Fellowships</div>
+            <ul className="honors-list">
               {about.honors.map((h) => (
                 <li key={h}>{h}</li>
               ))}
             </ul>
-          </div>
+          </aside>
         </div>
       </div>
     </section>
   );
 }
 
-// ─── Research ───────────────────────────────────────────────
+/* ─── Research ─────────────────────────────────────────────── */
 function Research() {
   return (
-    <section id="research">
+    <section className="section" id="research">
       <div className="container">
-        <div className="section-label">Research</div>
-        <div className="research-grid">
+        <div className="section-eyebrow">Research</div>
+        <div className="research-list">
           {research.map((r) => (
             <article className="research-card" key={r.id}>
-              <div className="research-card-header">
+              <div className="research-meta">
                 <span className="research-lab">{r.lab}</span>
                 {r.publication && (
                   <span
-                    className={`research-pub-badge ${
-                      r.publication.includes("lead")
-                        ? "lead"
-                        : "contributing"
+                    className={`badge ${
+                      r.publication.includes("lead") ? "badge-lead" : "badge-contrib"
                     }`}
                   >
-                    {r.publication.includes("lead")
-                      ? "Lead Author"
-                      : "Contributing Author"}
+                    {r.publication.includes("lead") ? "Lead Author" : "Contributing Author"}
                   </span>
                 )}
-                {r.upcoming && (
-                  <span className="research-pub-badge upcoming">
-                    Starting 2026
-                  </span>
-                )}
+                {r.upcoming && <span className="badge badge-upcoming">Starting 2026</span>}
               </div>
               <h3 className="research-title">{r.title}</h3>
-              <div className="research-pi">
-                {r.pi} · {r.institution}
-              </div>
-              <p className="research-description">{r.description}</p>
-              <div className="research-tags">
-                {r.tags.map((tag) => (
-                  <span className="tag" key={tag}>
-                    {tag}
-                  </span>
+              <p className="research-pi">{r.pi} — {r.institution}</p>
+              <p className="research-desc">{r.description}</p>
+              <div className="tag-row">
+                {r.tags.map((t) => (
+                  <span className="tag" key={t}>{t}</span>
                 ))}
               </div>
             </article>
@@ -137,45 +120,37 @@ function Research() {
   );
 }
 
-// ─── Projects ───────────────────────────────────────────────
+/* ─── Projects ─────────────────────────────────────────────── */
 function Projects() {
   return (
-    <section id="projects">
+    <section className="section" id="projects">
       <div className="container">
-        <div className="section-label">Projects</div>
+        <div className="section-eyebrow">Projects</div>
         <div className="projects-grid">
           {projects.map((p) => (
             <article
-              className={`project-card${p.featured ? " featured" : ""}`}
+              className={`project-card ${p.featured ? "project-featured" : ""}`}
               key={p.id}
             >
-              <h3 className="project-title">{p.title}</h3>
-              <p className="project-description">{p.description}</p>
-              <div className="project-footer">
-                <div className="project-tags">
-                  {p.tags.map((tag) => (
-                    <span className="tag" key={tag}>
-                      {tag}
-                    </span>
+              <div className="project-body">
+                <h3 className="project-title">{p.title}</h3>
+                <p className="project-desc">{p.description}</p>
+              </div>
+              <div className="project-bottom">
+                <div className="tag-row">
+                  {p.tags.map((t) => (
+                    <span className="tag" key={t}>{t}</span>
                   ))}
                 </div>
                 <div className="project-links">
                   {p.github && (
-                    <a
-                      href={p.github}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
+                    <a href={p.github} target="_blank" rel="noopener noreferrer">
                       GitHub ↗
                     </a>
                   )}
                   {p.demo && (
-                    <a
-                      href={p.demo}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Live Demo ↗
+                    <a href={p.demo} target="_blank" rel="noopener noreferrer">
+                      Demo ↗
                     </a>
                   )}
                 </div>
@@ -188,96 +163,52 @@ function Projects() {
   );
 }
 
-// ─── Experience ─────────────────────────────────────────────
+/* ─── Experience ───────────────────────────────────────────── */
 function Experience() {
   return (
-    <section id="experience">
+    <section className="section" id="experience">
       <div className="container">
-        <div className="section-label">Experience</div>
+        <div className="section-eyebrow">Experience</div>
         <div className="experience-list">
           {experience.map((e, i) => (
-            <div className="experience-item" key={i}>
-              <div className="experience-period">{e.period}</div>
-              <div>
-                <h3 className="experience-role">{e.role}</h3>
-                <div className="experience-company">
-                  {e.company} · {e.location}
-                </div>
-                <p className="experience-description">{e.description}</p>
+            <div className="exp-row" key={i}>
+              <div className="exp-period">{e.period}</div>
+              <div className="exp-content">
+                <h3 className="exp-role">{e.role}</h3>
+                <p className="exp-company">{e.company} — {e.location}</p>
+                <p className="exp-desc">{e.description}</p>
               </div>
             </div>
           ))}
         </div>
-      </div>
-    </section>
-  );
-}
 
-// ─── Publications ───────────────────────────────────────────
-function Publications() {
-  return (
-    <section id="publications">
-      <div className="container">
-        <div className="section-label">Publications</div>
+        <div className="section-eyebrow" style={{ marginTop: 80 }}>Publications</div>
         <div className="publications-list">
           {publications.map((p, i) => (
-            <div className="publication-item" key={i}>
-              <h3 className="publication-title">{p.title}</h3>
-              <div className="publication-authors">{p.authors}</div>
-              <div className="publication-venue">{p.venue}</div>
-              <div className="publication-meta">
-                <span
-                  className={`publication-status ${
-                    p.role === "Lead Author" ? "lead" : "contributing"
-                  }`}
-                >
-                  {p.status} · {p.role}
-                </span>
-              </div>
+            <div className="pub-item" key={i}>
+              <h3 className="pub-title">{p.title}</h3>
+              <p className="pub-authors">{p.authors}</p>
+              <p className="pub-venue">{p.venue}</p>
+              <span className={`badge ${p.role === "Lead Author" ? "badge-lead" : "badge-contrib"}`}>
+                {p.status} · {p.role}
+              </span>
             </div>
           ))}
         </div>
-      </div>
-    </section>
-  );
-}
 
-// ─── Skills ─────────────────────────────────────────────────
-function Skills() {
-  return (
-    <section id="skills">
-      <div className="container">
-        <div className="section-label">Skills</div>
-        <div className="skills-content">
+        <div className="section-eyebrow" style={{ marginTop: 80 }}>Skills</div>
+        <div className="skills-grid">
           <div>
-            <div className="skills-category-title">Languages</div>
-            <div className="skills-list">
-              {skills.languages.map((s) => (
-                <span className="tag" key={s}>
-                  {s}
-                </span>
-              ))}
-            </div>
+            <div className="sidebar-label">Languages</div>
+            <div className="tag-row">{skills.languages.map((s) => <span className="tag" key={s}>{s}</span>)}</div>
           </div>
           <div>
-            <div className="skills-category-title">Frameworks & Tools</div>
-            <div className="skills-list">
-              {skills.frameworks.map((s) => (
-                <span className="tag" key={s}>
-                  {s}
-                </span>
-              ))}
-            </div>
+            <div className="sidebar-label">Tools</div>
+            <div className="tag-row">{skills.tools.map((s) => <span className="tag" key={s}>{s}</span>)}</div>
           </div>
           <div>
-            <div className="skills-category-title">Domains</div>
-            <div className="skills-list">
-              {skills.domains.map((s) => (
-                <span className="tag" key={s}>
-                  {s}
-                </span>
-              ))}
-            </div>
+            <div className="sidebar-label">Domains</div>
+            <div className="tag-row">{skills.domains.map((s) => <span className="tag" key={s}>{s}</span>)}</div>
           </div>
         </div>
       </div>
@@ -285,67 +216,43 @@ function Skills() {
   );
 }
 
-// ─── Footer / Contact ───────────────────────────────────────
+/* ─── Footer / Contact ─────────────────────────────────────── */
 function Footer() {
   return (
     <footer className="footer" id="contact">
       <div className="container">
-        <div className="footer-content">
+        <div className="footer-inner">
           <div>
-            <h2 className="footer-heading">
-              Let's build something that matters.
-            </h2>
+            <h2 className="footer-cta">Let's build something<br />that matters.</h2>
             <a href={`mailto:${personal.email}`} className="footer-email">
-              {personal.email}
+              {personal.email} ↗
             </a>
           </div>
-          <div className="footer-links">
-            <a
-              href={personal.github}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              GitHub
-            </a>
-            <a
-              href={personal.linkedin}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              LinkedIn
-            </a>
-            <a
-              href={personal.efolio}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Grand Challenge ePortfolio
-            </a>
+          <div className="footer-right">
+            <a href={personal.github} target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href={personal.linkedin} target="_blank" rel="noopener noreferrer">LinkedIn</a>
+            <a href={personal.efolio} target="_blank" rel="noopener noreferrer">GCS ePortfolio</a>
           </div>
         </div>
-        <div className="footer-bottom">
-          © {new Date().getFullYear()} {personal.name}
-        </div>
+        <div className="footer-copy">© {new Date().getFullYear()} {personal.name}</div>
       </div>
     </footer>
   );
 }
 
-// ─── App ────────────────────────────────────────────────────
-function App() {
+/* ─── App ──────────────────────────────────────────────────── */
+export default function App() {
   return (
     <>
       <Nav />
       <Hero />
-      <About />
-      <Research />
-      <Projects />
-      <Experience />
-      <Publications />
-      <Skills />
-      <Footer />
+      <main className="main-content">
+        <About />
+        <Research />
+        <Projects />
+        <Experience />
+        <Footer />
+      </main>
     </>
   );
 }
-
-export default App;

@@ -1,7 +1,6 @@
 // ============================================================
-// PORTFOLIO DATA — Edit all your content here in one place.
-// Components pull from this file, so you won't need to
-// dig through JSX to change text.
+// PORTFOLIO DATA — Edit all your content here.
+// Search "TEMPLATE" for placeholders that need replacing.
 // ============================================================
 
 export const personal = {
@@ -10,7 +9,7 @@ export const personal = {
   email: "your.email@scu.edu", // TEMPLATE — replace
   github: "https://github.com/yourusername", // TEMPLATE — replace
   linkedin: "https://linkedin.com/in/yourprofile", // TEMPLATE — replace
-  efolio: "https://your-efolio-url.scu.edu", // TEMPLATE — replace (Grand Challenge Scholars efolio)
+  efolio: "https://your-efolio-url.scu.edu", // TEMPLATE — replace
 };
 
 export const about = {
@@ -37,7 +36,7 @@ export const research = [
     title: "Real-Time Shape Reconstruction for Medical Robotics",
     description:
       "Developing real-time shape reconstruction methods for soft medical robots using embedded sensing and machine learning. This work enables robots to understand their own deformation during surgical procedures — a critical capability for safe, autonomous operation inside the body.",
-    tags: ["Medical Robotics", "ML", "Embedded Sensing", "Shape Reconstruction"],
+    tags: ["Medical Robotics", "ML", "Embedded Sensing"],
     publication: "Forthcoming — contributing author",
   },
   {
@@ -47,8 +46,8 @@ export const research = [
     institution: "Santa Clara University",
     title: "µSR Experimental Analysis of Quantum Materials",
     description:
-      "Leading experimental analysis using muon spin rotation (µSR) techniques to probe magnetic and electronic properties of quantum materials. On-site experiments conducted at SLAC National Accelerator Laboratory and the Advanced Light Source at Lawrence Berkeley National Laboratory.",
-    tags: ["µSR", "Quantum Materials", "SLAC", "ALS", "Experimental Physics"],
+      "Leading experimental analysis using muon spin rotation techniques to probe magnetic and electronic properties of quantum materials. On-site experiments conducted at SLAC National Accelerator Laboratory and the Advanced Light Source at Lawrence Berkeley National Laboratory.",
+    tags: ["µSR", "Quantum Materials", "SLAC", "ALS"],
     publication: "Forthcoming — lead author",
   },
   {
@@ -58,7 +57,7 @@ export const research = [
     institution: "Santa Clara University",
     title: "AI in Medical Imaging and Robotic Surgery",
     description:
-      "Starting junior year. Research focus on applying artificial intelligence to medical imaging analysis and robotic surgical systems.", // TEMPLATE — expand when you begin
+      "Starting junior year. Research focus on applying artificial intelligence to medical imaging analysis and robotic surgical systems.",
     tags: ["Medical Imaging", "AI", "Robotic Surgery"],
     publication: null,
     upcoming: true,
@@ -71,9 +70,9 @@ export const projects = [
     title: "Acuros",
     description:
       "6-DoF surgical teleoperation system with mirrored joint-space control across dual robotic arms. Enables intuitive, real-time remote manipulation for surgical applications.",
-    tags: ["C++", "Embedded Systems", "Motor Control", "Robotics", "CAD"],
-    github: "", // TEMPLATE — add link
-    demo: "", // TEMPLATE — add link if applicable
+    tags: ["C++", "Embedded Systems", "Motor Control", "Robotics"],
+    github: "",
+    demo: "",
     featured: true,
   },
   {
@@ -82,16 +81,16 @@ export const projects = [
     description:
       "Computational protein structure analysis and visualization tool. Currently adding a web-based UI and ML-driven predictions for structural properties.",
     tags: ["Python", "PyMOL", "ML", "React"],
-    github: "", // TEMPLATE — add link
-    demo: "", // TEMPLATE — add link if applicable
+    github: "",
+    demo: "",
   },
   {
     id: "physicslab",
     title: "PhysicsLab",
     description:
       "Educational physics simulation platform with 200+ active users. Interactive simulations covering mechanics, electromagnetism, and more.",
-    tags: ["JavaScript", "React", "Physics Simulation"],
-    github: "", // TEMPLATE — add link
+    tags: ["JavaScript", "React", "Physics"],
+    github: "",
     demo: "https://PhysicsLab.vercel.app",
   },
   {
@@ -99,17 +98,17 @@ export const projects = [
     title: "Propel",
     description:
       "Full-stack ML housing price prediction platform. End-to-end pipeline from data ingestion to interactive predictions.",
-    tags: ["Python", "ML", "React", "Full-Stack"],
-    github: "", // TEMPLATE — add link
+    tags: ["Python", "ML", "React"],
+    github: "",
     demo: "https://Propel.vercel.app",
   },
   {
     id: "swim-touchpad",
-    title: "Swim Training Touchpad System",
+    title: "Swim Training Touchpad",
     description:
       "Data capture system for competitive swim training. Leading a 3-person engineering team through design, prototyping, and deployment.",
-    tags: ["Embedded Systems", "Hardware", "Data Capture"],
-    github: "", // TEMPLATE — add link
+    tags: ["Embedded Systems", "Hardware"],
+    github: "",
     demo: "",
   },
 ];
@@ -120,26 +119,22 @@ export const experience = [
     company: "Triple Ring Technologies",
     location: "Bay Area, CA",
     period: "Summer 2026",
-    description:
-      "Medtech engineering firm. Details to come.", // TEMPLATE — expand after internship
-    tags: ["Medtech", "Software Engineering"],
+    description: "Medtech engineering firm. Details to come.",
   },
 ];
 
 export const publications = [
   {
     title: "TEMPLATE — Paper title on shape reconstruction for medical robotics",
-    authors: "Kürkçü, ..., A. Mazor, ...", // TEMPLATE — update with real author list
-    venue: "TEMPLATE — Journal/Conference name",
-    year: "2025/2026",
+    authors: "Kürkçü, ..., A. Mazor, ...",
+    venue: "TEMPLATE — Journal/Conference",
     status: "Forthcoming",
     role: "Contributing Author",
   },
   {
     title: "TEMPLATE — Paper title on µSR experimental analysis",
-    authors: "A. Mazor, ..., Wu", // TEMPLATE — update with real author list
-    venue: "TEMPLATE — Journal/Conference name",
-    year: "2025/2026",
+    authors: "A. Mazor, ..., Wu",
+    venue: "TEMPLATE — Journal/Conference",
     status: "Forthcoming",
     role: "Lead Author",
   },
@@ -147,22 +142,14 @@ export const publications = [
 
 export const skills = {
   languages: ["C++", "C", "Python", "JavaScript", "MATLAB", "Assembly", "Verilog"],
-  frameworks: ["React", "Linux", "Git"],
-  domains: [
-    "Embedded Systems",
-    "Motor Control",
-    "Machine Learning",
-    "CAD",
-    "Medical Robotics",
-    "Quantum Materials",
-    "Signal Processing",
-  ],
+  tools: ["React", "Linux", "Git", "CAD"],
+  domains: ["Embedded Systems", "Motor Control", "Machine Learning", "Medical Robotics", "Signal Processing"],
 };
 
 export const nav = [
   { label: "About", href: "#about" },
   { label: "Research", href: "#research" },
   { label: "Projects", href: "#projects" },
-  { label: "Publications", href: "#publications" },
+  { label: "Experience", href: "#experience" },
   { label: "Contact", href: "#contact" },
 ];
