@@ -4,6 +4,7 @@ import Home from "./pages/Home";
 import ResearchPage from "./pages/ResearchPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import ExperiencePage from "./pages/ExperiencePage";
+import AcademicsPage from "./pages/AcademicsPage";
 import ContactPage from "./pages/ContactPage";
 import { personal } from "./data";
 import "./App.css";
@@ -21,14 +22,14 @@ function ScrollToTop() {
 function Nav() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const isHome = location.pathname === "/";
 
-  // Close mobile menu on route change
   useEffect(() => {
     setOpen(false);
   }, [location]);
 
   return (
-    <nav className="nav">
+    <nav className={`nav${isHome ? " nav-dark" : ""}`}>
       <div className="nav-inner">
         <NavLink to="/" className="nav-logo">
           {personal.name.split(" ")[0]}
@@ -48,6 +49,7 @@ function Nav() {
             ["/research", "Research"],
             ["/projects", "Projects"],
             ["/experience", "Experience"],
+            ["/academics", "Academics"],
             ["/contact", "Contact"],
           ].map(([to, label]) => (
             <li key={to}>
@@ -79,6 +81,7 @@ export default function App() {
         <Route path="/research" element={<ResearchPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/experience" element={<ExperiencePage />} />
+        <Route path="/academics"  element={<AcademicsPage />} />
         <Route path="/contact" element={<ContactPage />} />
       </Routes>
     </BrowserRouter>

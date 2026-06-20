@@ -6,9 +6,9 @@
 export const personal = {
   name: "Ariel Mazor",
   tagline: "Building intelligent systems for surgery and medicine.",
-  email: "your.email@scu.edu", // TEMPLATE — replace
-  github: "https://github.com/yourusername", // TEMPLATE — replace
-  linkedin: "https://linkedin.com/in/yourprofile", // TEMPLATE — replace
+  email: "amazor@scu.edu",
+  github: "https://github.com/amazor06",
+  linkedin: "https://www.linkedin.com/in/amazor28/",
   efolio: "https://your-efolio-url.scu.edu", // TEMPLATE — replace
 };
 
