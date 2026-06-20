@@ -6,7 +6,7 @@ import { corridorHasPlayed, markCorridorPlayed } from "../introState";
 
 export default function Home() {
   const navigate  = useNavigate();
-  const hasPlayed = corridorHasPlayed;
+  const hasPlayed = corridorHasPlayed();
 
   const [nameIn,     setNameIn]     = useState(hasPlayed);
   const [tagIn,      setTagIn]      = useState(false);

@@ -27,7 +27,7 @@ const SCR_DARK = new THREE.Color("#020c18");
 
 // ── Single panel ─────────────────────────────────────────────────────
 function NavPanel({ item, index, visible, onNavigate }) {
-  const skipAnim = corridorHasPlayed;
+  const skipAnim = corridorHasPlayed();
 
   const groupRef     = useRef();
   const screenMatRef = useRef();

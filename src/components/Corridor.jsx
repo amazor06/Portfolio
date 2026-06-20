@@ -1,37 +1,65 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useGLTF } from "@react-three/drei";
-import { useRef, useMemo, Suspense, useEffect } from "react";
+import { useRef, useMemo } from "react";
 import EndWallNav from "./EndWallNav";
 import * as THREE from "three";
 
-const W = 5;
-const H = 3.5;
+/* ── Scene constants ──────────────────────────────────────────── */
+const W       = 5;
+const H       = 3.5;
 const Z_START = 14;
-const Z_END = -14;
-const Z_REST = -10;
-const CAM_Y = 1.75;
-const FLY_DURATION = 7.5;
-const L = Z_START - Z_END;
-const MID_Z = (Z_START + Z_END) / 2;
+const Z_END   = -14;
+const Z_REST  = -10;
+const CAM_Y   = 1.65;
+const FLY_DUR = 12;
+const L       = Z_START - Z_END;
+const MID_Z   = (Z_START + Z_END) / 2;
 
-// Left wall glass curtain zone — nearly full corridor length
-const GZ0 = -13.5;
-const GZ1 = 7.0;
-const MULLION_GAP = 1.55;
+/* ── OR window (left wall) ────────────────────────────────────── */
+const WIN_L_Z0   = 0.5;
+const WIN_L_Z1   = 4.5;
+const WIN_L_ZC   = (WIN_L_Z0 + WIN_L_Z1) / 2;   // 2.5
+const WIN_L_ZH   = (WIN_L_Z1 - WIN_L_Z0) / 2;   // 2.0
+const WIN_L_YBOT = 0.35;
+const WIN_L_YTOP = 3.1;
+const WIN_L_YC   = (WIN_L_YBOT + WIN_L_YTOP) / 2;
+const WIN_L_YH   = WIN_L_YTOP - WIN_L_YBOT;
 
-// Right wall observation window (patient room)
-const RW = { z: 3.5, zHalf: 1.35, yBot: 0.3, yTop: 3.2 };
+/* ── OR room geometry ─────────────────────────────────────────── */
+const OR_DEPTH = 5.0;
+const OR_CX    = -W / 2 - OR_DEPTH / 2;   // -5.0  room centre X
+const OR_RZ    = WIN_L_ZC;                 //  2.5  room centre Z
+const OR_BACK  = -W / 2 - OR_DEPTH;       // -7.5  back wall X
+const OR_ZSPAN = 7.0;                      // room total Z extent
 
-// Clinical palette
-const WALL  = "#f0f0ee";
-const CEIL  = "#f6f6f4";
-const FLOOR = "#e6e6e4";
-const MULL  = "#1c2028";
+/* ── Patient room window (right wall) ────────────────────────── */
+const WIN_R_Z0   = -5.5;
+const WIN_R_Z1   = -1.5;
+const WIN_R_ZC   = (WIN_R_Z0 + WIN_R_Z1) / 2;   // -3.5
+const WIN_R_ZH   = (WIN_R_Z1 - WIN_R_Z0) / 2;   //  2.0
+const WIN_R_YBOT = 0.35;
+const WIN_R_YTOP = 3.1;
+const WIN_R_YC   = (WIN_R_YBOT + WIN_R_YTOP) / 2;
+const WIN_R_YH   = WIN_R_YTOP - WIN_R_YBOT;
 
+/* ── Patient room geometry ────────────────────────────────────── */
+const PR_DEPTH = 4.5;
+const PR_CX    =  W / 2 + PR_DEPTH / 2;   //  4.75
+const PR_RZ    = WIN_R_ZC;                 // -3.5
+const PR_BACK  =  W / 2 + PR_DEPTH;       //  7.0
+const PR_ZSPAN = 7.0;
+
+/* ── Palette ──────────────────────────────────────────────────── */
+const WALL   = "#f0f0f0";
+const FLOOR  = "#e0e0e0";
+const CEIL   = "#f4f4f4";
+const BASE   = "#d4d4d4";
+const STRIPE = "#4a90b8";
+const MULL   = "#1c2028";
+
+/* ── Easing ───────────────────────────────────────────────────── */
 function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
-
 function lerpKF(kfs, t) {
   if (t <= kfs[0].t) return kfs[0].v.clone();
   const last = kfs[kfs.length - 1];
@@ -39,70 +67,46 @@ function lerpKF(kfs, t) {
   for (let i = 0; i < kfs.length - 1; i++) {
     const a = kfs[i], b = kfs[i + 1];
     if (t >= a.t && t <= b.t) {
-      const local = (t - a.t) / (b.t - a.t);
-      return new THREE.Vector3().lerpVectors(a.v, b.v, easeInOutCubic(local));
+      const f = easeInOutCubic((t - a.t) / (b.t - a.t));
+      return new THREE.Vector3().lerpVectors(a.v, b.v, f);
     }
   }
   return kfs[0].v.clone();
 }
 
-/* ─── GLB model components ───────────────────────────────────── */
-function OperatingTableModel({ position, scale = 1, rotation = [0, 0, 0] }) {
-  const { scene } = useGLTF("/models/operating_table.glb");
-
-  useEffect(() => {
-    if (!scene) return;
-    const box = new THREE.Box3().setFromObject(scene);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const sc = Array.isArray(scale) ? scale[0] : scale;
-    console.log("[OR Table] native bounds (scale=1):",
-      `min.y=${box.min.y.toFixed(3)}`,
-      `size=${size.x.toFixed(3)} × ${size.y.toFixed(3)} × ${size.z.toFixed(3)}`);
-    console.log(`[OR Table] at scene scale ${sc}:`,
-      `${(size.x*sc).toFixed(3)} × ${(size.y*sc).toFixed(3)} × ${(size.z*sc).toFixed(3)} m`,
-      `| y-offset for floor: ${(-box.min.y*sc).toFixed(3)} m`);
-  }, [scene]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  return <primitive object={scene} position={position} scale={scale} rotation={rotation} />;
-}
-
-function HospitalBedModel({ position, scale = 1, rotation = [0, 0, 0] }) {
-  const { scene } = useGLTF("/models/hospital_bed.glb");
-  return <primitive object={scene} position={position} scale={scale} rotation={rotation} />;
-}
-
-useGLTF.preload("/models/operating_table.glb");
-useGLTF.preload("/models/hospital_bed.glb");
-
-/* ─── Cinematic dolly camera ─────────────────────────────────── */
+/* ── Cinematic camera fly-through ─────────────────────────────── */
 function CameraFly({ onComplete, skipIntro }) {
   const { camera } = useThree();
   const startedAt = useRef(null);
   const finished  = useRef(false);
 
+  // Camera world-position path
   const posKF = useMemo(() => [
-    { t: 0.00, v: new THREE.Vector3( 0.0,  CAM_Y,  14) },
-    { t: 0.22, v: new THREE.Vector3(-0.85, CAM_Y,   8) },
-    { t: 0.43, v: new THREE.Vector3(-0.55, CAM_Y,   2) },
-    { t: 0.55, v: new THREE.Vector3( 0.85, CAM_Y,  -1) },
-    { t: 0.78, v: new THREE.Vector3( 0.5,  CAM_Y,  -7) },
-    { t: 1.00, v: new THREE.Vector3( 0.0,  CAM_Y, -10) },
+    { t: 0.00, v: new THREE.Vector3( 0.00, CAM_Y,  14) }, // entrance
+    { t: 0.25, v: new THREE.Vector3( 0.00, CAM_Y,   8) }, // phase 1 end — moved forward
+    { t: 0.35, v: new THREE.Vector3( 0.65, CAM_Y,   6) }, // drift right (phase 2)
+    { t: 0.50, v: new THREE.Vector3( 0.65, CAM_Y,   4) }, // hold right — alongside OR window
+    { t: 0.58, v: new THREE.Vector3( 0.00, CAM_Y,   1) }, // return to centre (phase 2→3)
+    { t: 0.68, v: new THREE.Vector3(-0.65, CAM_Y,  -3) }, // drift left (phase 3)
+    { t: 0.78, v: new THREE.Vector3(-0.65, CAM_Y,  -5) }, // hold left — alongside patient window
+    { t: 0.90, v: new THREE.Vector3(-0.10, CAM_Y,  -7) }, // straighten (phase 4)
+    { t: 1.00, v: new THREE.Vector3( 0.00, CAM_Y, Z_REST) }, // rest position
   ], []);
 
+  // Look-at target path (world coords)
   const lookKF = useMemo(() => [
-    { t: 0.00, v: new THREE.Vector3( 0.0,  CAM_Y, -14) },
-    { t: 0.18, v: new THREE.Vector3( 2.5,  1.85,   3.5) },
-    { t: 0.46, v: new THREE.Vector3( 2.5,  1.85,   3.5) },
-    { t: 0.58, v: new THREE.Vector3(-2.5,  1.85,  -4.5) },
-    { t: 0.80, v: new THREE.Vector3(-2.5,  1.85,  -4.5) },
-    { t: 1.00, v: new THREE.Vector3( 0.0,  CAM_Y, -14) },
+    { t: 0.00, v: new THREE.Vector3( 0.00, CAM_Y, Z_END)   }, // straight down corridor
+    { t: 0.22, v: new THREE.Vector3( 0.00, CAM_Y, Z_END)   }, // hold straight
+    { t: 0.38, v: new THREE.Vector3(-5.00,  1.50, WIN_L_ZC) }, // pivot left — OR room
+    { t: 0.50, v: new THREE.Vector3(-5.00,  1.50, WIN_L_ZC) }, // hold on OR room
+    { t: 0.62, v: new THREE.Vector3( 4.50,  1.50, WIN_R_ZC) }, // swing right — patient room
+    { t: 0.78, v: new THREE.Vector3( 4.50,  1.50, WIN_R_ZC) }, // hold on patient room
+    { t: 0.92, v: new THREE.Vector3( 0.00, CAM_Y, Z_END)   }, // straighten to end wall
+    { t: 1.00, v: new THREE.Vector3( 0.00, CAM_Y, Z_END)   }, // rest — facing end wall
   ], []);
 
   useFrame(({ clock }) => {
     if (finished.current) return;
-
-    // Returning visitor — jump straight to rest position on first frame
     if (skipIntro) {
       finished.current = true;
       camera.position.set(0, CAM_Y, Z_REST);
@@ -110,9 +114,8 @@ function CameraFly({ onComplete, skipIntro }) {
       onComplete?.();
       return;
     }
-
     if (startedAt.current === null) startedAt.current = clock.elapsedTime;
-    const raw = Math.min((clock.elapsedTime - startedAt.current) / FLY_DURATION, 1);
+    const raw = Math.min((clock.elapsedTime - startedAt.current) / FLY_DUR, 1);
     camera.position.copy(lerpKF(posKF, raw));
     camera.lookAt(lerpKF(lookKF, raw));
     if (raw >= 1) { finished.current = true; onComplete?.(); }
@@ -121,347 +124,478 @@ function CameraFly({ onComplete, skipIntro }) {
   return null;
 }
 
-/* ─── Ceiling panel light (recessed rectangular) ────────────── */
+/* ── Recessed ceiling panel light ────────────────────────────── */
 function CeilingPanel({ z }) {
-  const pw = 1.5, ph = 0.85;
   return (
-    <group position={[0, H - 0.018, z]}>
-      {/* Panel surround */}
-      <mesh>
-        <boxGeometry args={[pw, 0.055, ph]} />
-        <meshStandardMaterial color="#d8d8d6" roughness={0.2} metalness={0.08} />
+    <group position={[0, H, z]}>
+      <mesh position={[0, 0.02, 0]}>
+        <boxGeometry args={[1.4, 0.04, 0.8]} />
+        <meshStandardMaterial color="#cccccc" roughness={0.2} metalness={0.1} />
       </mesh>
-      {/* Emissive diffuser */}
-      <mesh position={[0, -0.029, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[pw - 0.04, ph - 0.04]} />
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[1.3, 0.72]} />
         <meshStandardMaterial color="#ffffff" emissive="#ffffff"
-          emissiveIntensity={3.2} roughness={0.1} side={THREE.DoubleSide} />
+          emissiveIntensity={3.0} roughness={0.05} side={THREE.DoubleSide} />
       </mesh>
-      <pointLight position={[0, -0.55, 0]} intensity={9} distance={9} color="#f8f8f5" decay={2} />
+      <pointLight position={[0, -0.6, 0]} intensity={9} distance={9}
+        color="#f8f8f4" decay={2} />
     </group>
   );
 }
 
-/* ─── Left wall glass curtain system ─────────────────────────── */
-function GlassCurtainWall() {
-  const lx = -W / 2;
-  const gLen = GZ1 - GZ0;
-  const gCZ  = (GZ0 + GZ1) / 2;
-  const kickH = 0.14;
-  const glassH = H - kickH - 0.06;
-  const glassCY = kickH + glassH / 2;
-
-  // Vertical mullion z positions
-  const mullionZs = [];
-  for (let z = GZ0; z <= GZ1 + 0.01; z += MULLION_GAP) mullionZs.push(z);
-
-  // Horizontal rail y positions
-  const hRails = [kickH, 0.95, H - 0.06];
-
-  return (
-    <group>
-      {/* Single large glass pane */}
-      <mesh rotation={[0, Math.PI / 2, 0]} position={[lx + 0.005, glassCY, gCZ]}>
-        <planeGeometry args={[gLen, glassH]} />
-        <meshStandardMaterial color="#c2d8e8" transparent opacity={0.11}
-          roughness={0.01} metalness={0.04} side={THREE.DoubleSide} />
-      </mesh>
-
-      {/* Kickboard — solid painted strip at bottom */}
-      <mesh rotation={[0, Math.PI / 2, 0]} position={[lx + 0.004, kickH / 2, gCZ]}>
-        <planeGeometry args={[gLen, kickH]} />
-        <meshStandardMaterial color={WALL} roughness={0.8} />
-      </mesh>
-
-      {/* Vertical mullions */}
-      {mullionZs.map((mz, i) => (
-        <mesh key={i} position={[lx + 0.016, glassCY, mz]}>
-          <boxGeometry args={[0.032, glassH + kickH, 0.04]} />
-          <meshStandardMaterial color={MULL} roughness={0.28} metalness={0.45} />
-        </mesh>
-      ))}
-
-      {/* Horizontal rails */}
-      {hRails.map((hy, i) => (
-        <mesh key={i} position={[lx + 0.016, hy, gCZ]}>
-          <boxGeometry args={[0.032, 0.038, gLen + 0.05]} />
-          <meshStandardMaterial color={MULL} roughness={0.28} metalness={0.45} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-/* ─── Window frame (right wall observation window) ───────────── */
-function WindowFrame({ wx, win, inward }) {
-  const { z, zHalf, yBot, yTop } = win;
-  const yMid = (yBot + yTop) / 2;
-  const yH   = yTop - yBot;
-  const ox   = wx + inward * 0.036;
-  const fm   = <meshStandardMaterial color={MULL} roughness={0.28} metalness={0.45} />;
-  return (
-    <group>
-      <mesh position={[ox, yTop + 0.026, z]}>
-        <boxGeometry args={[0.056, 0.05, zHalf * 2 + 0.1]} />{fm}
-      </mesh>
-      <mesh position={[ox, yBot - 0.026, z]}>
-        <boxGeometry args={[0.056, 0.05, zHalf * 2 + 0.1]} />{fm}
-      </mesh>
-      <mesh position={[ox, yMid, z - zHalf - 0.026]}>
-        <boxGeometry args={[0.056, yH + 0.1, 0.05]} />{fm}
-      </mesh>
-      <mesh position={[ox, yMid, z + zHalf + 0.026]}>
-        <boxGeometry args={[0.056, yH + 0.1, 0.05]} />{fm}
-      </mesh>
-    </group>
-  );
-}
-
-/* ─── OR room (behind left glass curtain wall) ──────────────── */
+/* ── Operating Room (behind left window) ──────────────────────── */
 function ORRoom() {
-  const depth = 4.8;
-  const lx    = -W / 2;
-  const backX = lx - depth;
-  const cx    = lx - depth / 2;  // ≈ −4.9 center X
-  const rz    = -4.5;            // OR room center Z
-  const rSpan = 6.0;             // room Z span
-  const rm    = "#eaeae8";       // room wall color
+  const cx    = OR_CX;    // -5.0
+  const rz    = OR_RZ;    //  2.5
+  const backX = OR_BACK;  // -7.5
+  const zspan = OR_ZSPAN; //  7.0
+
+  // Vitals monitor position (closer to window, visible from corridor)
+  const monX = cx + 0.85;          // -4.15
+  const monZ = rz - 0.75;          //  1.75
+  const scrX = monX - 0.01;        // front face of screen housing (-4.16)
+  const ecgX = scrX + 0.003;       // ECG sits on screen surface
+
+  // ECG baseline/peak Y
+  const ecgY0 = 1.620;             // baseline
+  const ecgY1 = 1.682;             // R-peak
+
+  // Precomputed ECG segment angles (rotate around world X to tilt in Y-Z plane)
+  const spikeAngle = Math.atan2(ecgY1 - ecgY0, 0.013); // ~78° rising
+  const twaveAngle = Math.atan2(0.016, 0.026);          // ~32° T-wave
+
+  // IV stand position
+  const ivX = cx - 0.35;           // -5.35
+  const ivZ = rz + 1.1;            //  3.6
 
   return (
     <group>
-      {/* Room shell — bright white walls, floor, ceiling */}
-      <mesh rotation={[0, Math.PI / 2, 0]} position={[backX, H / 2, rz]}>
-        <planeGeometry args={[rSpan + 1.0, H]} />
-        <meshStandardMaterial color={rm} roughness={0.82} />
+      {/* ── Room shell ───────────────────────────────────────── */}
+      {/* Back wall */}
+      <mesh rotation={[0, -Math.PI / 2, 0]} position={[backX, H / 2, rz]}>
+        <planeGeometry args={[zspan, H]} />
+        <meshStandardMaterial color="#eeeeee" roughness={0.85} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0.002, rz]}>
-        <planeGeometry args={[depth, rSpan + 1.0]} />
-        <meshStandardMaterial color="#e0e0de" roughness={0.18} metalness={0.04} />
+      {/* Floor — light blue-green tint */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0.001, rz]}>
+        <planeGeometry args={[OR_DEPTH, zspan]} />
+        <meshStandardMaterial color="#e8f4f4" roughness={0.18} metalness={0.04} />
       </mesh>
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[cx, H - 0.01, rz]}>
-        <planeGeometry args={[depth, rSpan + 1.0]} />
-        <meshStandardMaterial color="#f2f2f0" roughness={0.8} />
+      {/* Ceiling */}
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[cx, H - 0.002, rz]}>
+        <planeGeometry args={[OR_DEPTH, zspan]} />
+        <meshStandardMaterial color="#f4f4f4" roughness={0.85} />
       </mesh>
-      {/* Blue floor stripe */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0.003, rz - rSpan / 2 + 0.06]}>
-        <planeGeometry args={[depth, 0.09]} />
-        <meshStandardMaterial color="#5588bb" roughness={0.3} />
+      {/* Far Z side wall */}
+      <mesh position={[cx, H / 2, rz + zspan / 2]}>
+        <planeGeometry args={[OR_DEPTH, H]} />
+        <meshStandardMaterial color="#eeeeee" roughness={0.85} />
+      </mesh>
+      {/* Near Z side wall */}
+      <mesh rotation={[0, Math.PI, 0]} position={[cx, H / 2, rz - zspan / 2]}>
+        <planeGeometry args={[OR_DEPTH, H]} />
+        <meshStandardMaterial color="#eeeeee" roughness={0.85} />
       </mesh>
 
-      {/* Operating table — native ~300 units → scale 0.005 ≈ 1.5 m.
-           Console "[OR Table]" lines report exact rendered size + y-offset for floor. */}
-      <OperatingTableModel
-        position={[cx, 0.755, rz]}
-        scale={0.005}
-        rotation={[0, Math.PI / 2, 0]}
-      />
+      {/* ── Operating table ──────────────────────────────────── */}
+      {/* Central pedestal */}
+      <mesh position={[cx, 0.425, rz]}>
+        <cylinderGeometry args={[0.18, 0.22, 0.85, 16]} />
+        <meshStandardMaterial color="#c8c8c8" roughness={0.3} metalness={0.6} />
+      </mesh>
+      {/* Table surface */}
+      <mesh position={[cx, 0.89, rz]}>
+        <boxGeometry args={[2.05, 0.08, 0.64]} />
+        <meshStandardMaterial color="#f8f8f8" roughness={0.3} metalness={0.1} />
+      </mesh>
+      {/* Mattress padding */}
+      <mesh position={[cx, 0.94, rz]}>
+        <boxGeometry args={[1.96, 0.055, 0.57]} />
+        <meshStandardMaterial color="#e6eef4" roughness={0.72} />
+      </mesh>
 
-      {/* Overhead surgical light — ceiling track + arm + large disc */}
-      <mesh position={[cx, H - 0.03, rz]}>
-        <boxGeometry args={[0.1, 0.055, 0.6]} />
-        <meshStandardMaterial color="#c0c0be" roughness={0.3} metalness={0.5} />
+      {/* ── Overhead surgical lamp ───────────────────────────── */}
+      {/* Ceiling track */}
+      <mesh position={[cx, H - 0.015, rz]}>
+        <boxGeometry args={[0.08, 0.03, 0.55]} />
+        <meshStandardMaterial color="#bebebe" roughness={0.3} metalness={0.5} />
       </mesh>
-      <mesh position={[cx, H - 0.19, rz]}>
-        <cylinderGeometry args={[0.028, 0.028, 0.26, 12]} />
-        <meshStandardMaterial color="#888888" roughness={0.3} metalness={0.55} />
+      {/* Arm */}
+      <mesh position={[cx, H - 0.268, rz]}>
+        <cylinderGeometry args={[0.024, 0.024, 0.46, 12]} />
+        <meshStandardMaterial color="#aaaaaa" roughness={0.28} metalness={0.62} />
       </mesh>
-      {/* Large disc housing */}
-      <mesh position={[cx, H - 0.38, rz]}>
-        <cylinderGeometry args={[0.40, 0.40, 0.065, 32]} />
-        <meshStandardMaterial color="#2a2a2a" roughness={0.22} metalness={0.62} />
+      {/* Disc housing */}
+      <mesh position={[cx, H - 0.525, rz]}>
+        <cylinderGeometry args={[0.30, 0.30, 0.07, 32]} />
+        <meshStandardMaterial color="#282828" roughness={0.22} metalness={0.62} />
       </mesh>
-      {/* Emissive face — large bright circle */}
-      <mesh position={[cx, H - 0.415, rz]} rotation={[Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.36, 32]} />
-        <meshStandardMaterial color="#ddeeff" emissive="#cce4ff"
-          emissiveIntensity={4.5} side={THREE.DoubleSide} />
+      {/* Emissive underside — warm surgical white */}
+      <mesh position={[cx, H - 0.562, rz]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.27, 32]} />
+        <meshStandardMaterial color="#fff9e8" emissive="#fff9e8"
+          emissiveIntensity={5} side={THREE.DoubleSide} />
       </mesh>
-      <pointLight position={[cx, H - 0.45, rz]} intensity={14} distance={3.2} color="#ddeeff" decay={2} />
+      <pointLight position={[cx, H - 0.59, rz]}
+        intensity={14} distance={3.5} color="#fff8e8" decay={2} />
 
-      {/* Vitals monitor on rolling stand */}
-      {/* Wheeled base */}
-      <mesh position={[cx + 0.85, 0.04, rz - 0.75]}>
-        <cylinderGeometry args={[0.19, 0.19, 0.035, 5]} />
-        <meshStandardMaterial color="#aaaaaa" roughness={0.5} metalness={0.4} />
+      {/* ── Vitals monitor on rolling stand ──────────────────── */}
+      {/* Pentagonal base */}
+      <mesh position={[monX, 0.02, monZ]}>
+        <cylinderGeometry args={[0.18, 0.18, 0.04, 5]} />
+        <meshStandardMaterial color="#aaaaaa" roughness={0.4} metalness={0.4} />
       </mesh>
-      <mesh position={[cx + 0.85, 0.86, rz - 0.75]}>
-        <cylinderGeometry args={[0.022, 0.026, 1.64, 8]} />
+      {/* Pole */}
+      <mesh position={[monX, 0.76, monZ]}>
+        <cylinderGeometry args={[0.018, 0.022, 1.52, 8]} />
         <meshStandardMaterial color="#bbbbbb" roughness={0.3} metalness={0.55} />
       </mesh>
+      {/* Bracket arm */}
+      <mesh position={[monX - 0.04, 1.54, monZ]}>
+        <boxGeometry args={[0.12, 0.04, 0.04]} />
+        <meshStandardMaterial color="#aaaaaa" roughness={0.3} metalness={0.5} />
+      </mesh>
       {/* Monitor housing */}
-      <mesh position={[cx + 0.76, 1.82, rz - 0.75]}>
-        <boxGeometry args={[0.075, 0.44, 0.56]} />
-        <meshStandardMaterial color="#1e1e1e" roughness={0.22} metalness={0.42} />
+      <mesh position={[monX - 0.04, 1.62, monZ]}>
+        <boxGeometry args={[0.06, 0.28, 0.38]} />
+        <meshStandardMaterial color="#1a1a1a" roughness={0.22} metalness={0.4} />
       </mesh>
-      {/* Green ECG screen — facing +X toward glass */}
-      <mesh position={[cx + 0.724, 1.82, rz - 0.75]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[0.52, 0.4]} />
-        <meshStandardMaterial color="#001800" emissive="#00cc44"
-          emissiveIntensity={2.2} roughness={0.1} side={THREE.DoubleSide} />
-      </mesh>
-      {/* ECG flatline */}
-      <mesh position={[cx + 0.718, 1.82, rz - 0.75 - 0.08]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[0.16, 0.011]} />
-        <meshStandardMaterial color="#00ff55" emissive="#00ff55" emissiveIntensity={6} side={THREE.DoubleSide} />
-      </mesh>
-      {/* ECG peak — rising */}
-      <mesh position={[cx + 0.717, 1.87, rz - 0.75 + 0.01]} rotation={[0, Math.PI / 2, 0.42]}>
-        <planeGeometry args={[0.10, 0.010]} />
-        <meshStandardMaterial color="#00ff55" emissive="#00ff55" emissiveIntensity={6} side={THREE.DoubleSide} />
-      </mesh>
-      {/* ECG peak — falling */}
-      <mesh position={[cx + 0.717, 1.86, rz - 0.75 + 0.09]} rotation={[0, Math.PI / 2, -0.62]}>
-        <planeGeometry args={[0.12, 0.010]} />
-        <meshStandardMaterial color="#00ff55" emissive="#00ff55" emissiveIntensity={6} side={THREE.DoubleSide} />
-      </mesh>
-      {/* ECG flatline right */}
-      <mesh position={[cx + 0.718, 1.82, rz - 0.75 + 0.19]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[0.16, 0.011]} />
-        <meshStandardMaterial color="#00ff55" emissive="#00ff55" emissiveIntensity={6} side={THREE.DoubleSide} />
+      {/* Screen face — dark green, facing +X toward corridor */}
+      <mesh position={[scrX, 1.62, monZ]} rotation={[0, -Math.PI / 2, 0]}>
+        <planeGeometry args={[0.34, 0.24]} />
+        <meshStandardMaterial color="#001200" emissive="#001a00"
+          emissiveIntensity={1.6} roughness={0.1} side={THREE.DoubleSide} />
       </mesh>
 
-      {/* IV stand — tall pole with bag */}
-      <mesh position={[cx + 0.9, 1.5, rz + 0.85]}>
-        <cylinderGeometry args={[0.016, 0.02, 3.0, 8]} />
-        <meshStandardMaterial color="#bbbbbb" roughness={0.3} metalness={0.6} />
+      {/* ── ECG heartbeat line (green boxes on screen face) ─── */}
+      {/* 1 — left baseline */}
+      <mesh position={[ecgX, ecgY0, monZ - 0.105]}>
+        <boxGeometry args={[0.007, 0.005, 0.08]} />
+        <meshStandardMaterial color="#00ff55" emissive="#00ff55" emissiveIntensity={5} />
       </mesh>
-      <mesh position={[cx + 0.9, 2.99, rz + 0.85]}>
-        <boxGeometry args={[0.28, 0.02, 0.022]} />
+      {/* 2 — rising R spike */}
+      <mesh position={[ecgX, (ecgY0 + ecgY1) / 2, monZ - 0.054]}
+            rotation={[-spikeAngle, 0, 0]}>
+        <boxGeometry args={[0.007, 0.005, 0.064]} />
+        <meshStandardMaterial color="#00ff55" emissive="#00ff55" emissiveIntensity={5} />
+      </mesh>
+      {/* 3 — falling R spike */}
+      <mesh position={[ecgX, (ecgY0 + ecgY1) / 2, monZ - 0.028]}
+            rotation={[spikeAngle, 0, 0]}>
+        <boxGeometry args={[0.007, 0.005, 0.064]} />
+        <meshStandardMaterial color="#00ff55" emissive="#00ff55" emissiveIntensity={5} />
+      </mesh>
+      {/* 4 — middle baseline */}
+      <mesh position={[ecgX, ecgY0, monZ + 0.028]}>
+        <boxGeometry args={[0.007, 0.005, 0.06]} />
+        <meshStandardMaterial color="#00ff55" emissive="#00ff55" emissiveIntensity={5} />
+      </mesh>
+      {/* 5 — T-wave up */}
+      <mesh position={[ecgX, ecgY0 + 0.008, monZ + 0.074]}
+            rotation={[-twaveAngle, 0, 0]}>
+        <boxGeometry args={[0.007, 0.005, 0.031]} />
+        <meshStandardMaterial color="#00ff55" emissive="#00ff55" emissiveIntensity={5} />
+      </mesh>
+      {/* 6 — T-wave down */}
+      <mesh position={[ecgX, ecgY0 + 0.008, monZ + 0.100]}
+            rotation={[twaveAngle, 0, 0]}>
+        <boxGeometry args={[0.007, 0.005, 0.031]} />
+        <meshStandardMaterial color="#00ff55" emissive="#00ff55" emissiveIntensity={5} />
+      </mesh>
+      {/* 7 — right baseline */}
+      <mesh position={[ecgX, ecgY0, monZ + 0.128]}>
+        <boxGeometry args={[0.007, 0.005, 0.076]} />
+        <meshStandardMaterial color="#00ff55" emissive="#00ff55" emissiveIntensity={5} />
+      </mesh>
+
+      {/* ── IV Stand ─────────────────────────────────────────── */}
+      {/* Base */}
+      <mesh position={[ivX, 0.02, ivZ]}>
+        <cylinderGeometry args={[0.20, 0.20, 0.036, 5]} />
+        <meshStandardMaterial color="#aaaaaa" roughness={0.4} metalness={0.4} />
+      </mesh>
+      {/* Pole */}
+      <mesh position={[ivX, 0.94, ivZ]}>
+        <cylinderGeometry args={[0.014, 0.018, 1.88, 8]} />
+        <meshStandardMaterial color="#c0c0c0" roughness={0.28} metalness={0.62} />
+      </mesh>
+      {/* Top crossbar (hook) */}
+      <mesh position={[ivX, 1.87, ivZ]}>
+        <boxGeometry args={[0.24, 0.016, 0.016]} />
         <meshStandardMaterial color="#aaaaaa" roughness={0.3} metalness={0.6} />
       </mesh>
-      <mesh position={[cx + 0.77, 2.72, rz + 0.85]}>
-        <boxGeometry args={[0.14, 0.26, 0.07]} />
-        <meshStandardMaterial color="#cce8cc" transparent opacity={0.72} roughness={0.5} />
+      {/* Small hook curve */}
+      <mesh position={[ivX - 0.08, 1.84, ivZ]} rotation={[0, 0, -0.6]}>
+        <cylinderGeometry args={[0.008, 0.008, 0.06, 8]} />
+        <meshStandardMaterial color="#aaaaaa" roughness={0.3} metalness={0.6} />
+      </mesh>
+      {/* IV bag — translucent */}
+      <mesh position={[ivX - 0.06, 1.68, ivZ]}>
+        <boxGeometry args={[0.08, 0.14, 0.04]} />
+        <meshStandardMaterial color="#c8e8c8" transparent opacity={0.78} roughness={0.5} />
+      </mesh>
+      {/* Drip tube */}
+      <mesh position={[ivX - 0.06, 1.54, ivZ]}>
+        <cylinderGeometry args={[0.005, 0.005, 0.26, 6]} />
+        <meshStandardMaterial color="#88aa88" transparent opacity={0.55} roughness={0.5} />
       </mesh>
 
-      {/* Room fill lights */}
-      <pointLight position={[cx, 2.6, rz - 1]} intensity={5} distance={6} color="#e8f2ff" decay={2} />
-      <pointLight position={[cx, 2.6, rz + 1]} intensity={4} distance={5} color="#deeeff" decay={2} />
-      {/* Subtle blue-green surgical tint */}
-      <pointLight position={[cx, 0.9, rz]} intensity={2} distance={5} color="#9ad8c8" decay={2} />
+      {/* ── Room lighting ─────────────────────────────────────── */}
+      <pointLight position={[cx, H - 0.5, rz - 0.5]}
+        intensity={5} distance={7} color="#eef4ff" decay={2} />
+      <pointLight position={[cx, H - 0.5, rz + 0.5]}
+        intensity={4} distance={6} color="#eef4ff" decay={2} />
+      {/* Blue-green surgical accent */}
+      <pointLight position={[cx, 1.1, rz]}
+        intensity={2.5} distance={5} color="#9ad8c8" decay={2} />
     </group>
   );
 }
 
-/* ─── Patient room (behind right wall observation window) ────── */
+/* ── Patient Recovery Room (behind right window) ─────────────── */
 function PatientRoom() {
-  const { z, zHalf, yBot, yTop } = RW;
-  const yMid  = (yBot + yTop) / 2;
-  const yH    = yTop - yBot;
-  const depth = 3.8;
-  const wx    = W / 2;
-  const backX = wx + depth;
-  const cx    = wx + depth / 2;
+  const cx    = PR_CX;    //  4.75
+  const rz    = PR_RZ;    // -3.5
+  const backX = PR_BACK;  //  7.0
+  const zspan = PR_ZSPAN; //  7.0
+
+  // Bed position — close to window so it's visible
+  const bedX = 3.8;
+  const bedZ = rz;  // -3.5
+
+  // Bed Y-levels
+  const legTopY  = 0.55;
+  const frameTopY = legTopY + 0.10;   // 0.65
+  const mattThk  = 0.15;
+  const mattBotY = frameTopY;         // 0.65
+  const mattTopY = mattBotY + mattThk; // 0.80
+
+  // Head section (group-pivot approach — rotates around hinge cleanly)
+  const hingeZ    = bedZ - 0.72;      // -4.22
+  const headLen   = 0.58;
+  const headAngle = Math.PI * 20 / 180;
+
+  // Flat body section spans footEndZ → hingeZ
+  const footEndZ = bedZ + 0.82;       // -2.68
+  const flatLen  = Math.abs(hingeZ - footEndZ);          // 1.54
+  const flatCZ   = (hingeZ + footEndZ) / 2;              // -3.45
+
+  // Monitor position — close to window, visible from corridor
+  const monX = 3.2;
+  const monZ = bedZ + 0.65;           // -2.85  (foot/corridor side of bed)
+
+  // Bedside table — between window wall and bed
+  const tbX = 2.85;
+  const tbZ = hingeZ - 0.05;         // -4.27  (near head of bed)
 
   return (
     <group>
-      {/* Glass — nearly clear */}
-      <mesh rotation={[0, -Math.PI / 2, 0]} position={[wx - 0.006, yMid, z]}>
-        <planeGeometry args={[zHalf * 2, yH]} />
-        <meshStandardMaterial color="#c2d8e8" transparent opacity={0.13}
-          roughness={0.01} side={THREE.DoubleSide} />
+      {/* ── Room shell ───────────────────────────────────────── */}
+      <mesh rotation={[0, Math.PI / 2, 0]} position={[backX, H / 2, rz]}>
+        <planeGeometry args={[zspan, H]} />
+        <meshStandardMaterial color="#eeeeee" roughness={0.85} />
       </mesh>
-      <WindowFrame wx={wx} win={RW} inward={-1} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0.001, rz]}>
+        <planeGeometry args={[PR_DEPTH, zspan]} />
+        <meshStandardMaterial color="#e8f4f4" roughness={0.18} metalness={0.04} />
+      </mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[cx, H - 0.002, rz]}>
+        <planeGeometry args={[PR_DEPTH, zspan]} />
+        <meshStandardMaterial color="#f4f4f4" roughness={0.85} />
+      </mesh>
+      {/* Near Z side wall (entrance side) */}
+      <mesh rotation={[0, Math.PI, 0]} position={[cx, H / 2, rz + zspan / 2]}>
+        <planeGeometry args={[PR_DEPTH, H]} />
+        <meshStandardMaterial color="#eeeeee" roughness={0.85} />
+      </mesh>
+      {/* Far Z side wall (deep side) */}
+      <mesh position={[cx, H / 2, rz - zspan / 2]}>
+        <planeGeometry args={[PR_DEPTH, H]} />
+        <meshStandardMaterial color="#eeeeee" roughness={0.85} />
+      </mesh>
 
-      {/* Room shell */}
-      <mesh rotation={[0, -Math.PI / 2, 0]} position={[backX, H / 2, z]}>
-        <planeGeometry args={[zHalf * 2 + 0.8, H]} />
-        <meshStandardMaterial color="#ebebea" roughness={0.85} />
+      {/* ── Outside window on back wall ──────────────────────── */}
+      {/* Dark frame border */}
+      <mesh rotation={[0, Math.PI / 2, 0]} position={[backX - 0.012, 1.85, rz]}>
+        <planeGeometry args={[1.32, 1.52]} />
+        <meshStandardMaterial color="#2a3040" roughness={0.4} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0.002, z]}>
-        <planeGeometry args={[depth, zHalf * 2 + 0.8]} />
-        <meshStandardMaterial color="#e0e0de" roughness={0.2} metalness={0.04} />
+      {/* Bright glass — suggests daylight */}
+      <mesh rotation={[0, Math.PI / 2, 0]} position={[backX - 0.016, 1.85, rz]}>
+        <planeGeometry args={[1.18, 1.38]} />
+        <meshStandardMaterial color="#d0e8ff" emissive="#c0e0ff"
+          emissiveIntensity={1.4} roughness={0.06} side={THREE.DoubleSide} />
       </mesh>
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[cx, H - 0.01, z]}>
-        <planeGeometry args={[depth, zHalf * 2 + 0.8]} />
-        <meshStandardMaterial color="#f0f0ee" roughness={0.8} />
+      {/* Cross dividers */}
+      <mesh rotation={[0, Math.PI / 2, 0]} position={[backX - 0.014, 1.85, rz]}>
+        <planeGeometry args={[0.03, 1.38]} />
+        <meshStandardMaterial color="#2a3040" roughness={0.4} />
       </mesh>
+      <mesh rotation={[0, Math.PI / 2, 0]} position={[backX - 0.014, 1.85, rz]}>
+        <planeGeometry args={[1.18, 0.03]} />
+        <meshStandardMaterial color="#2a3040" roughness={0.4} />
+      </mesh>
+      <pointLight position={[backX - 0.6, 1.85, rz]}
+        intensity={3} distance={5} color="#c8e0ff" decay={2} />
 
-      {/* Hospital bed — scale 0.006 puts it at ~0.9m wide × 2.0m long × 0.79m tall.
-           Long axis is model-Z, which already runs along scene-Z (no Y-rotation needed).
-           Model pivot is at mattress level so py=+0.42 puts the wheels on the floor. */}
-      <HospitalBedModel
-        position={[cx, 0.42, z]}
-        scale={0.006}
-        rotation={[0, 0, 0]}
-      />
+      {/* ── Hospital bed ──────────────────────────────────────── */}
+      {/* Four legs */}
+      {[[-0.38, footEndZ - 0.08], [ 0.38, footEndZ - 0.08],
+        [-0.38, hingeZ + 0.06],   [ 0.38, hingeZ + 0.06]].map(([dx, lz], i) => (
+        <mesh key={i} position={[bedX + dx, legTopY / 2, lz]}>
+          <cylinderGeometry args={[0.035, 0.035, legTopY, 10]} />
+          <meshStandardMaterial color="#c0c0c0" roughness={0.3} metalness={0.6} />
+        </mesh>
+      ))}
+      {/* Frame */}
+      <mesh position={[bedX, (legTopY + frameTopY) / 2, bedZ]}>
+        <boxGeometry args={[0.92, 0.10, flatLen + headLen + 0.04]} />
+        <meshStandardMaterial color="#d0d0d0" roughness={0.38} metalness={0.3} />
+      </mesh>
+      {/* Flat mattress — body/foot section */}
+      <mesh position={[bedX, mattBotY + mattThk / 2, flatCZ]}>
+        <boxGeometry args={[0.88, mattThk, flatLen]} />
+        <meshStandardMaterial color="#dce8f4" roughness={0.72} />
+      </mesh>
+      {/* Angled head section — pivots at hinge to tilt up 20° */}
+      <group position={[bedX, mattTopY, hingeZ]} rotation={[headAngle, 0, 0]}>
+        <mesh position={[0, -mattThk / 2, -headLen / 2]}>
+          <boxGeometry args={[0.88, mattThk, headLen]} />
+          <meshStandardMaterial color="#ccdded" roughness={0.72} />
+        </mesh>
+        {/* Pillow */}
+        <mesh position={[0, mattThk * 0.4, -(headLen - 0.22)]}>
+          <boxGeometry args={[0.66, 0.075, 0.32]} />
+          <meshStandardMaterial color="#f0f4f8" roughness={0.85} />
+        </mesh>
+      </group>
+      {/* Side rails */}
+      {[-0.46, 0.46].map((dx, i) => (
+        <mesh key={i} position={[bedX + dx, mattTopY + 0.12, flatCZ]}>
+          <boxGeometry args={[0.015, 0.20, flatLen * 0.72]} />
+          <meshStandardMaterial color="#bbbbbb" roughness={0.3} metalness={0.55} />
+        </mesh>
+      ))}
 
-      {/* Bedside monitor on pole */}
-      <mesh position={[cx - 0.46, 0.9, z - 0.72]}>
-        <cylinderGeometry args={[0.018, 0.022, 1.8, 8]} />
-        <meshStandardMaterial color="#999999" roughness={0.3} metalness={0.5} />
+      {/* ── Bedside monitor on short stand ───────────────────── */}
+      <mesh position={[monX, 0.02, monZ]}>
+        <cylinderGeometry args={[0.14, 0.14, 0.04, 5]} />
+        <meshStandardMaterial color="#aaaaaa" roughness={0.4} metalness={0.4} />
       </mesh>
-      <mesh position={[cx - 0.46, 1.76, z - 0.72]}>
-        <boxGeometry args={[0.065, 0.38, 0.48]} />
-        <meshStandardMaterial color="#111111" roughness={0.22} metalness={0.42} />
+      <mesh position={[monX, 0.64, monZ]}>
+        <cylinderGeometry args={[0.016, 0.020, 1.28, 8]} />
+        <meshStandardMaterial color="#bbbbbb" roughness={0.3} metalness={0.55} />
       </mesh>
-      <mesh position={[cx - 0.433, 1.76, z - 0.72]} rotation={[0, -Math.PI / 2, 0]}>
-        <planeGeometry args={[0.44, 0.34]} />
-        <meshStandardMaterial color="#001020" emissive="#2255bb"
+      {/* Housing */}
+      <mesh position={[monX + 0.03, 1.30, monZ]}>
+        <boxGeometry args={[0.055, 0.22, 0.30]} />
+        <meshStandardMaterial color="#1a1a1a" roughness={0.22} metalness={0.4} />
+      </mesh>
+      {/* Screen — faces -X toward corridor window */}
+      <mesh position={[monX + 0.002, 1.30, monZ]} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[0.26, 0.18]} />
+        <meshStandardMaterial color="#001020" emissive="#1a3a6a"
           emissiveIntensity={2.0} roughness={0.1} side={THREE.DoubleSide} />
       </mesh>
-
-      {/* IV drip stand */}
-      <mesh position={[cx - 0.44, 1.52, z + 0.88]}>
-        <cylinderGeometry args={[0.016, 0.02, 3.04, 8]} />
-        <meshStandardMaterial color="#bbbbbb" roughness={0.3} metalness={0.6} />
-      </mesh>
-      <mesh position={[cx - 0.44, 3.03, z + 0.88]}>
-        <sphereGeometry args={[0.05, 8, 8]} />
-        <meshStandardMaterial color="#999" roughness={0.3} metalness={0.5} />
-      </mesh>
-      <mesh position={[cx - 0.44, 3.04, z + 0.88]}>
-        <boxGeometry args={[0.28, 0.02, 0.022]} />
-        <meshStandardMaterial color="#aaaaaa" roughness={0.3} metalness={0.6} />
-      </mesh>
-      <mesh position={[cx - 0.55, 2.76, z + 0.88]}>
-        <boxGeometry args={[0.13, 0.24, 0.07]} />
-        <meshStandardMaterial color="#cce8cc" transparent opacity={0.72} roughness={0.5} />
+      {/* Patient vitals line on screen */}
+      <mesh position={[monX + 0.001, 1.308, monZ]}>
+        <boxGeometry args={[0.005, 0.004, 0.20]} />
+        <meshStandardMaterial color="#44aaff" emissive="#44aaff" emissiveIntensity={3.5} />
       </mesh>
 
-      {/* Room fill light */}
-      <pointLight position={[cx, 2.5, z]} intensity={4} distance={5.5} color="#eef2ff" decay={2} />
+      {/* ── Bedside table ─────────────────────────────────────── */}
+      {/* Tabletop */}
+      <mesh position={[tbX, 0.50, tbZ]}>
+        <boxGeometry args={[0.42, 0.04, 0.42]} />
+        <meshStandardMaterial color="#e2e2e0" roughness={0.5} metalness={0.1} />
+      </mesh>
+      {/* Legs */}
+      {[[-0.16, -0.16], [-0.16, 0.16],
+        [ 0.16, -0.16], [ 0.16, 0.16]].map(([dx, dz], i) => (
+        <mesh key={i} position={[tbX + dx, 0.25, tbZ + dz]}>
+          <cylinderGeometry args={[0.016, 0.016, 0.50, 8]} />
+          <meshStandardMaterial color="#cccccc" roughness={0.4} metalness={0.4} />
+        </mesh>
+      ))}
+      {/* Water cup on table */}
+      <mesh position={[tbX + 0.09, 0.565, tbZ - 0.08]}>
+        <cylinderGeometry args={[0.034, 0.030, 0.12, 10]} />
+        <meshStandardMaterial color="#a8c8e8" transparent opacity={0.65} roughness={0.1} />
+      </mesh>
+
+      {/* ── Room lighting ─────────────────────────────────────── */}
+      <pointLight position={[cx, H - 0.5, rz]}
+        intensity={5} distance={7} color="#eef4ff" decay={2} />
+      <pointLight position={[cx, 1.0, rz]}
+        intensity={2} distance={5} color="#9ad8c8" decay={2} />
     </group>
   );
 }
 
-/* ─── Hospital gurney parked in corridor ─────────────────────── */
-function CorridorGurney({ z }) {
-  const x = W / 2 - 0.6;
+/* ── Cylindrical wall handrail ────────────────────────────────── */
+function Handrail({ side, z0, z1 }) {
+  const x   = side === "left" ? -W / 2 + 0.058 : W / 2 - 0.058;
+  const cz  = (z0 + z1) / 2;
+  const len = Math.abs(z1 - z0);
+  return (
+    <group>
+      <mesh position={[x, 1.0, cz]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.022, 0.022, len, 10]} />
+        <meshStandardMaterial color="#b4b4b2" roughness={0.28} metalness={0.58} />
+      </mesh>
+      {/* Wall brackets every ~2.5m */}
+      {Array.from({ length: Math.floor(len / 2.5) + 1 }, (_, i) => z0 + i * 2.5)
+        .filter(bz => bz <= z1)
+        .map((bz, i) => (
+          <mesh key={i}
+            position={[side === "left" ? x + 0.028 : x - 0.028, 0.98, bz]}>
+            <boxGeometry args={[0.055, 0.055, 0.04]} />
+            <meshStandardMaterial color="#888886" roughness={0.35} metalness={0.55} />
+          </mesh>
+        ))}
+    </group>
+  );
+}
+
+/* ── Corridor gurney ──────────────────────────────────────────── */
+function Gurney() {
+  const x = W / 2 - 0.38;   // centre; right edge ≈ 2.43, close to wall
+  const z = -0.5;
   return (
     <group position={[x, 0, z]}>
       {/* Frame */}
-      <mesh position={[0, 0.68, 0]}>
-        <boxGeometry args={[0.64, 0.055, 1.9]} />
-        <meshStandardMaterial color="#c8c8c8" roughness={0.38} metalness={0.4} />
+      <mesh position={[0, 0.70, 0]}>
+        <boxGeometry args={[0.62, 0.055, 1.95]} />
+        <meshStandardMaterial color="#c8c8c6" roughness={0.38} metalness={0.42} />
       </mesh>
       {/* Mattress */}
-      <mesh position={[0, 0.75, 0.1]}>
-        <boxGeometry args={[0.58, 0.11, 1.68]} />
-        <meshStandardMaterial color="#d8e4f0" roughness={0.65} />
+      <mesh position={[0, 0.762, 0.06]}>
+        <boxGeometry args={[0.58, 0.095, 1.72]} />
+        <meshStandardMaterial color="#d6e2f0" roughness={0.65} />
       </mesh>
-      {/* Head raised */}
-      <mesh position={[0, 0.84, -0.68]} rotation={[0.35, 0, 0]}>
-        <boxGeometry args={[0.58, 0.09, 0.58]} />
-        <meshStandardMaterial color="#ccdae8" roughness={0.65} />
+      {/* Head raised section */}
+      <mesh position={[0, 0.835, -0.72]} rotation={[0.28, 0, 0]}>
+        <boxGeometry args={[0.58, 0.085, 0.55]} />
+        <meshStandardMaterial color="#ccd8e8" roughness={0.65} />
       </mesh>
       {/* Side rails */}
-      {[-0.3, 0.3].map((dx, i) => (
-        <mesh key={i} position={[dx, 0.8, 0.05]}>
-          <boxGeometry args={[0.016, 0.18, 1.55]} />
+      {[-0.31, 0.31].map((dx, i) => (
+        <mesh key={i} position={[dx, 0.792, 0.04]}>
+          <boxGeometry args={[0.014, 0.155, 1.55]} />
           <meshStandardMaterial color="#aaaaaa" roughness={0.3} metalness={0.5} />
         </mesh>
       ))}
-      {/* Legs + wheels */}
-      {[[-0.22, -0.82], [-0.22, 0.82], [0.22, -0.82], [0.22, 0.82]].map(([dx, dz], i) => (
+      {/* 4 legs + sphere wheels */}
+      {[[-0.22, -0.85], [-0.22, 0.85],
+        [ 0.22, -0.85], [ 0.22, 0.85]].map(([dx, dz], i) => (
         <group key={i} position={[dx, 0, dz]}>
-          <mesh position={[0, 0.34, 0]}>
-            <cylinderGeometry args={[0.02, 0.02, 0.68, 8]} />
+          <mesh position={[0, 0.33, 0]}>
+            <cylinderGeometry args={[0.018, 0.018, 0.66, 8]} />
             <meshStandardMaterial color="#aaaaaa" roughness={0.3} metalness={0.5} />
           </mesh>
-          <mesh position={[0, 0.055, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.055, 0.055, 0.04, 12]} />
-            <meshStandardMaterial color="#555" roughness={0.5} metalness={0.3} />
+          <mesh position={[0, 0.046, 0]}>
+            <sphereGeometry args={[0.046, 10, 8]} />
+            <meshStandardMaterial color="#444" roughness={0.5} metalness={0.35} />
           </mesh>
         </group>
       ))}
@@ -469,289 +603,336 @@ function CorridorGurney({ z }) {
   );
 }
 
-/* ─── Corridor IV stand ──────────────────────────────────────── */
-function CorridorIVStand({ z }) {
-  const x = W / 2 - 0.26;
+/* ── Wheelchair ───────────────────────────────────────────────── */
+function Wheelchair() {
+  const x = W / 2 - 0.38;   // same wall proximity as gurney
+  const z = -8.5;            // deep section, right wall
   return (
     <group position={[x, 0, z]}>
-      {/* Base (pentagonal feet) */}
-      <mesh position={[0, 0.04, 0]}>
-        <cylinderGeometry args={[0.21, 0.21, 0.032, 5]} />
-        <meshStandardMaterial color="#aaaaaa" roughness={0.4} metalness={0.4} />
+      {/* Seat */}
+      <mesh position={[0, 0.47, 0]}>
+        <boxGeometry args={[0.46, 0.055, 0.44]} />
+        <meshStandardMaterial color="#1e2030" roughness={0.6} metalness={0.1} />
       </mesh>
-      {/* Pole */}
-      <mesh position={[0, 1.54, 0]}>
-        <cylinderGeometry args={[0.016, 0.02, 3.08, 8]} />
-        <meshStandardMaterial color="#bbbbbb" roughness={0.3} metalness={0.6} />
+      {/* Backrest */}
+      <mesh position={[0, 0.80, -0.21]} rotation={[0.12, 0, 0]}>
+        <boxGeometry args={[0.44, 0.60, 0.055]} />
+        <meshStandardMaterial color="#1e2030" roughness={0.6} metalness={0.1} />
       </mesh>
-      {/* Top hook */}
-      <mesh position={[0, 3.07, 0]}>
-        <boxGeometry args={[0.28, 0.02, 0.022]} />
-        <meshStandardMaterial color="#aaaaaa" roughness={0.3} metalness={0.6} />
-      </mesh>
-      {/* Bag */}
-      <mesh position={[-0.1, 2.8, 0]}>
-        <boxGeometry args={[0.13, 0.22, 0.07]} />
-        <meshStandardMaterial color="#cce8cc" transparent opacity={0.72} roughness={0.5} />
+      {/* Frame side tubes (seat → backrest) */}
+      {[-0.21, 0.21].map((dx, i) => (
+        <mesh key={i} position={[dx, 0.63, -0.18]} rotation={[0.15, 0, 0]}>
+          <cylinderGeometry args={[0.014, 0.014, 0.68, 8]} />
+          <meshStandardMaterial color="#888" roughness={0.28} metalness={0.6} />
+        </mesh>
+      ))}
+      {/* Armrests */}
+      {[-0.24, 0.24].map((dx, i) => (
+        <mesh key={i} position={[dx, 0.56, 0]}>
+          <boxGeometry args={[0.026, 0.026, 0.44]} />
+          <meshStandardMaterial color="#888" roughness={0.28} metalness={0.6} />
+        </mesh>
+      ))}
+      {/* Large rear wheels — ring in YZ plane (hub along X) */}
+      {[-0.265, 0.265].map((dx, i) => (
+        <group key={i} position={[dx, 0.34, 0.04]}>
+          <mesh rotation={[0, Math.PI / 2, 0]}>
+            <torusGeometry args={[0.30, 0.028, 8, 28]} />
+            <meshStandardMaterial color="#222" roughness={0.55} metalness={0.3} />
+          </mesh>
+          {/* Spoke cross */}
+          {[0, Math.PI / 3, Math.PI * 2 / 3].map((a, j) => (
+            <mesh key={j} rotation={[0, Math.PI / 2, a]}>
+              <cylinderGeometry args={[0.007, 0.007, 0.56, 5]} />
+              <meshStandardMaterial color="#555" roughness={0.4} metalness={0.5} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+      {/* Small front caster wheels — cylinder hub along X */}
+      {[-0.15, 0.15].map((dx, i) => (
+        <mesh key={i} position={[dx, 0.062, 0.24]}
+              rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.062, 0.062, 0.032, 10]} />
+          <meshStandardMaterial color="#333" roughness={0.5} metalness={0.3} />
+        </mesh>
+      ))}
+      {/* Footrest */}
+      <mesh position={[0, 0.24, 0.26]}>
+        <boxGeometry args={[0.38, 0.028, 0.16]} />
+        <meshStandardMaterial color="#888" roughness={0.32} metalness={0.5} />
       </mesh>
     </group>
   );
 }
 
-/* ─── Wall-mounted handrail (both sides) ─────────────────────── */
-function Handrail({ side }) {
-  const x = side === "left" ? -W / 2 + 0.052 : W / 2 - 0.052;
-  return (
-    <mesh position={[x, 0.9, MID_Z]}>
-      <boxGeometry args={[0.028, 0.034, L]} />
-      <meshStandardMaterial color="#9a9998" roughness={0.32} metalness={0.48} />
-    </mesh>
-  );
-}
-
-/* ─── Room number sign ───────────────────────────────────────── */
-function RoomSign({ z, side = "right" }) {
-  const x = side === "right" ? W / 2 - 0.034 : -W / 2 + 0.034;
-  return (
-    <group position={[x, 2.55, z]}>
-      <mesh>
-        <boxGeometry args={[0.055, 0.13, 0.22]} />
-        <meshStandardMaterial color="#1a2230" roughness={0.3} metalness={0.2} />
-      </mesh>
-      <mesh position={[side === "right" ? 0.033 : -0.033, 0, 0]}>
-        <boxGeometry args={[0.005, 0.10, 0.18]} />
-        <meshStandardMaterial color="#ffffff" emissive="#cce8ff"
-          emissiveIntensity={0.9} roughness={0.1} />
-      </mesh>
-    </group>
-  );
-}
-
-/* ─── Hand sanitizer dispenser ───────────────────────────────── */
-function Sanitizer({ z, side = "left" }) {
-  const x = side === "left" ? -W / 2 + 0.04 : W / 2 - 0.04;
+/* ── Hand sanitizer dispenser ─────────────────────────────────── */
+function Sanitizer({ z }) {
+  const x = W / 2 - 0.042;  // flush against right wall
   return (
     <group position={[x, 1.52, z]}>
-      {/* Bracket */}
-      <mesh position={[side === "left" ? -0.015 : 0.015, 0, 0]}>
-        <boxGeometry args={[0.025, 0.32, 0.17]} />
+      {/* Wall bracket */}
+      <mesh position={[0.016, 0, 0]}>
+        <boxGeometry args={[0.026, 0.30, 0.16]} />
         <meshStandardMaterial color="#c8c8c6" roughness={0.4} metalness={0.3} />
       </mesh>
       {/* Body */}
       <mesh>
-        <boxGeometry args={[0.062, 0.27, 0.13]} />
-        <meshStandardMaterial color="#e2e2e0" roughness={0.5} metalness={0.08} />
+        <boxGeometry args={[0.058, 0.25, 0.12]} />
+        <meshStandardMaterial color="#e4e4e2" roughness={0.5} metalness={0.08} />
       </mesh>
-      {/* Nozzle */}
-      <mesh position={[side === "left" ? 0.04 : -0.04, 0.05, 0]}
-            rotation={[0, 0, side === "left" ? -Math.PI / 5 : Math.PI / 5]}>
-        <cylinderGeometry args={[0.013, 0.013, 0.09, 8]} />
-        <meshStandardMaterial color="#aaaaaa" roughness={0.3} metalness={0.5} />
+      {/* Pump nozzle — angled toward corridor */}
+      <mesh position={[-0.038, 0.04, 0]} rotation={[0, 0, Math.PI / 5]}>
+        <cylinderGeometry args={[0.012, 0.012, 0.08, 8]} />
+        <meshStandardMaterial color="#aaaaaa" roughness={0.28} metalness={0.55} />
       </mesh>
     </group>
   );
 }
 
-/* ─── Emergency exit sign ────────────────────────────────────── */
-function ExitSign({ z }) {
-  const x = -W / 2 + 0.036;
+/* ── Room number sign ──────────────────────────────────────────── */
+function RoomSign({ side, z, label }) {
+  const x       = side === "left" ? -W / 2 + 0.032 : W / 2 - 0.032;
+  const faceDir = side === "left" ? 0.030 : -0.030;
   return (
-    <group position={[x, H - 0.28, z]}>
+    <group position={[x, 2.58, z]}>
+      {/* Sign body */}
       <mesh>
-        <boxGeometry args={[0.052, 0.13, 0.32]} />
-        <meshStandardMaterial color="#111" roughness={0.3} />
+        <boxGeometry args={[0.052, 0.13, 0.22]} />
+        <meshStandardMaterial color="#192030" roughness={0.3} metalness={0.2} />
       </mesh>
-      <mesh position={[0.030, 0, 0]}>
-        <boxGeometry args={[0.007, 0.10, 0.28]} />
-        <meshStandardMaterial color="#00cc44" emissive="#00cc44"
-          emissiveIntensity={2.8} roughness={0.1} />
+      {/* Illuminated face */}
+      <mesh position={[faceDir, 0, 0]}>
+        <boxGeometry args={[0.006, 0.095, 0.17]} />
+        <meshStandardMaterial color="#ffffff" emissive="#cce8ff"
+          emissiveIntensity={1.1} roughness={0.08} />
       </mesh>
-      <pointLight position={[0.075, 0, 0]} intensity={0.4} distance={1.8} color="#00dd44" decay={2} />
-    </group>
-  );
-}
-
-/* ─── Double push doors (light gray, open 65°) ───────────────── */
-function DoorPanel({ side, doorZ }) {
-  const DW   = W / 2 - 0.04;
-  const DH   = H - 0.07;
-  const OPEN = Math.PI * 0.36;
-  const hx   = side === "left" ? -W / 2 + 0.02 : W / 2 - 0.02;
-  const ang  = side === "left" ? -OPEN : OPEN;
-  const px   = side === "left" ?  DW / 2 : -DW / 2;
-  const phx  = side === "left" ?  DW * 0.58 : -DW * 0.58;
-  return (
-    <group position={[hx, 0, doorZ]} rotation={[0, ang, 0]}>
-      <mesh position={[px, DH / 2, 0]}>
-        <boxGeometry args={[DW, DH, 0.055]} />
-        <meshStandardMaterial color="#d8d8d6" roughness={0.55} metalness={0.06} />
-      </mesh>
-      <mesh position={[px, DH * 0.44, 0.036]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.016, 0.016, 0.52, 10]} />
-        <meshStandardMaterial color="#888886" roughness={0.28} metalness={0.55} />
-      </mesh>
-      <mesh position={[phx, DH * 0.73, 0.034]}>
-        <torusGeometry args={[0.18, 0.015, 8, 32]} />
-        <meshStandardMaterial color="#888886" roughness={0.3} metalness={0.5} />
-      </mesh>
-      <mesh position={[phx, DH * 0.73, 0.035]}>
-        <circleGeometry args={[0.16, 32]} />
-        <meshStandardMaterial color="#c8d8e4" transparent opacity={0.4}
-          roughness={0.04} side={THREE.DoubleSide} />
+      {/* Teal accent strip at base of sign */}
+      <mesh position={[faceDir, -0.056, 0]}>
+        <boxGeometry args={[0.006, 0.016, 0.17]} />
+        <meshStandardMaterial color="#4a90b8" emissive="#4a90b8"
+          emissiveIntensity={1.4} />
       </mesh>
     </group>
   );
 }
 
-function HospitalDoors({ z }) {
-  const DH = H - 0.07;
-  return (
-    <group>
-      <mesh position={[0, DH + 0.038, z]}>
-        <boxGeometry args={[W + 0.06, 0.062, 0.09]} />
-        <meshStandardMaterial color="#c8c8c6" roughness={0.38} metalness={0.3} />
-      </mesh>
-      <DoorPanel side="left"  doorZ={z} />
-      <DoorPanel side="right" doorZ={z} />
-    </group>
-  );
-}
+/* ── Corridor shell ───────────────────────────────────────────── */
+function CorridorShell() {
+  const panelZs = [];
+  for (let z = Z_END + 1.75; z < Z_START; z += 3.5)
+    panelZs.push(parseFloat(z.toFixed(2)));
 
-/* ─── Main corridor geometry ─────────────────────────────────── */
-function CorridorGeometry() {
-  const panelZs = [-11, -7.5, -4, -0.5, 3, 6.5, 10, 13];
-  const lx = -W / 2;
-  const rx =  W / 2;
-
-  const ws = (rot, x, z0, z1, y0, y1) => ({
-    rot, x,
-    mz: (z0 + z1) / 2, my: (y0 + y1) / 2,
-    lz: z1 - z0, ly: y1 - y0,
-  });
-
-  const lRot = [0,  Math.PI / 2, 0];
-  const rRot = [0, -Math.PI / 2, 0];
-  const Z0 = Z_END, Z1 = Z_START;
-
-  // Left wall — solid only at the entrance section beyond the glass zone
-  const leftSegs = [
-    ws(lRot, lx, GZ1, Z1, 0, H),
-  ];
-
-  // Right wall — segmented around observation window
-  const rightSegs = [
-    ws(rRot, rx, Z0, Z1, 0, RW.yBot),
-    ws(rRot, rx, Z0, Z1, RW.yTop, H),
-    ws(rRot, rx, Z0, RW.z - RW.zHalf, RW.yBot, RW.yTop),
-    ws(rRot, rx, RW.z + RW.zHalf, Z1, RW.yBot, RW.yTop),
-  ];
+  const LX = -W / 2;
 
   return (
     <>
-      {/* Floor — polished light vinyl */}
+      {/* ── Floor ─────────────────────────────────────────────── */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, MID_Z]}>
         <planeGeometry args={[W, L]} />
-        <meshStandardMaterial color={FLOOR} roughness={0.22} metalness={0.06} />
+        <meshStandardMaterial color={FLOOR} roughness={0.18} metalness={0.06} />
       </mesh>
-      {/* Blue accent stripe — left edge */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-W / 2 + 0.065, 0.002, MID_Z]}>
+      {/* Accent stripes */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-W / 2 + 0.055, 0.003, MID_Z]}>
         <planeGeometry args={[0.09, L]} />
-        <meshStandardMaterial color="#5588bb" roughness={0.3} />
+        <meshStandardMaterial color={STRIPE} roughness={0.3} />
       </mesh>
-      {/* Blue accent stripe — right edge */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[W / 2 - 0.065, 0.002, MID_Z]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[W / 2 - 0.055, 0.003, MID_Z]}>
         <planeGeometry args={[0.09, L]} />
-        <meshStandardMaterial color="#5588bb" roughness={0.3} />
+        <meshStandardMaterial color={STRIPE} roughness={0.3} />
       </mesh>
 
-      {/* Ceiling */}
+      {/* ── Ceiling ───────────────────────────────────────────── */}
       <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, H, MID_Z]}>
         <planeGeometry args={[W, L]} />
         <meshStandardMaterial color={CEIL} roughness={0.85} />
       </mesh>
 
-      {/* Walls */}
-      {[...leftSegs, ...rightSegs].map((s, i) => (
-        <mesh key={i} rotation={s.rot} position={[s.x, s.my, s.mz]}>
-          <planeGeometry args={[s.lz, s.ly]} />
-          <meshStandardMaterial color={WALL} roughness={0.85} />
-        </mesh>
-      ))}
+      {/* ── Left wall — segmented around OR window ─────────────
+           Window opening: Z = WIN_L_Z0 (0.5) to WIN_L_Z1 (4.5)
+                           Y = WIN_L_YBOT (0.35) to WIN_L_YTOP (3.1)      */}
 
-      {/* Left wall back section (behind glass zone — covers below/above where glass doesn't reach) */}
-      {/* Bottom strip behind glass */}
-      <mesh rotation={lRot} position={[lx, 0.07, (GZ0 + GZ1) / 2]}>
-        <planeGeometry args={[GZ1 - GZ0, 0.14]} />
+      {/* Bottom strip — full length */}
+      <mesh rotation={[0, Math.PI / 2, 0]}
+            position={[LX, WIN_L_YBOT / 2, MID_Z]}>
+        <planeGeometry args={[L, WIN_L_YBOT]} />
         <meshStandardMaterial color={WALL} roughness={0.85} />
       </mesh>
-      {/* Top strip behind glass */}
-      <mesh rotation={lRot} position={[lx, H - 0.03, (GZ0 + GZ1) / 2]}>
-        <planeGeometry args={[GZ1 - GZ0, 0.06]} />
+      {/* Top strip — full length */}
+      <mesh rotation={[0, Math.PI / 2, 0]}
+            position={[LX, (WIN_L_YTOP + H) / 2, MID_Z]}>
+        <planeGeometry args={[L, H - WIN_L_YTOP]} />
         <meshStandardMaterial color={WALL} roughness={0.85} />
       </mesh>
-      {/* Small solid left wall section before GZ0 (deep end) */}
-      <mesh rotation={lRot} position={[lx, H / 2, (GZ0 + Z_END) / 2]}>
-        <planeGeometry args={[GZ0 - Z_END, H]} />
+      {/* Deep section — from end wall to window left edge */}
+      <mesh rotation={[0, Math.PI / 2, 0]}
+            position={[LX, WIN_L_YC, (Z_END + WIN_L_Z0) / 2]}>
+        <planeGeometry args={[WIN_L_Z0 - Z_END, WIN_L_YH]} />
+        <meshStandardMaterial color={WALL} roughness={0.85} />
+      </mesh>
+      {/* Entrance section — from window right edge to entrance */}
+      <mesh rotation={[0, Math.PI / 2, 0]}
+            position={[LX, WIN_L_YC, (WIN_L_Z1 + Z_START) / 2]}>
+        <planeGeometry args={[Z_START - WIN_L_Z1, WIN_L_YH]} />
         <meshStandardMaterial color={WALL} roughness={0.85} />
       </mesh>
 
-      {/* End wall */}
+      {/* ── Window frame — dark metal ──────────────────────────── */}
+      {/* Top bar */}
+      <mesh position={[LX + 0.026, WIN_L_YTOP + 0.022, WIN_L_ZC]}>
+        <boxGeometry args={[0.048, 0.044, WIN_L_ZH * 2 + 0.09]} />
+        <meshStandardMaterial color={MULL} roughness={0.28} metalness={0.5} />
+      </mesh>
+      {/* Bottom bar */}
+      <mesh position={[LX + 0.026, WIN_L_YBOT - 0.022, WIN_L_ZC]}>
+        <boxGeometry args={[0.048, 0.044, WIN_L_ZH * 2 + 0.09]} />
+        <meshStandardMaterial color={MULL} roughness={0.28} metalness={0.5} />
+      </mesh>
+      {/* Left jamb (deep/low-Z side) */}
+      <mesh position={[LX + 0.026, WIN_L_YC, WIN_L_Z0 - 0.022]}>
+        <boxGeometry args={[0.048, WIN_L_YH + 0.088, 0.044]} />
+        <meshStandardMaterial color={MULL} roughness={0.28} metalness={0.5} />
+      </mesh>
+      {/* Right jamb (entrance/high-Z side) */}
+      <mesh position={[LX + 0.026, WIN_L_YC, WIN_L_Z1 + 0.022]}>
+        <boxGeometry args={[0.048, WIN_L_YH + 0.088, 0.044]} />
+        <meshStandardMaterial color={MULL} roughness={0.28} metalness={0.5} />
+      </mesh>
+
+      {/* Glass pane — nearly clear */}
+      <mesh rotation={[0, Math.PI / 2, 0]}
+            position={[LX + 0.003, WIN_L_YC, WIN_L_ZC]}>
+        <planeGeometry args={[WIN_L_ZH * 2, WIN_L_YH]} />
+        <meshStandardMaterial color="#b8d8e8" transparent opacity={0.07}
+          roughness={0.02} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* ── Right wall — segmented around patient room window ───
+           Window: Z = WIN_R_Z0 (-5.5) → WIN_R_Z1 (-1.5)
+                   Y = WIN_R_YBOT (0.35) → WIN_R_YTOP (3.1)     */}
+      {/* Bottom strip — full length */}
+      <mesh rotation={[0, -Math.PI / 2, 0]}
+            position={[W / 2, WIN_R_YBOT / 2, MID_Z]}>
+        <planeGeometry args={[L, WIN_R_YBOT]} />
+        <meshStandardMaterial color={WALL} roughness={0.85} />
+      </mesh>
+      {/* Top strip — full length */}
+      <mesh rotation={[0, -Math.PI / 2, 0]}
+            position={[W / 2, (WIN_R_YTOP + H) / 2, MID_Z]}>
+        <planeGeometry args={[L, H - WIN_R_YTOP]} />
+        <meshStandardMaterial color={WALL} roughness={0.85} />
+      </mesh>
+      {/* Deep section — end wall to window */}
+      <mesh rotation={[0, -Math.PI / 2, 0]}
+            position={[W / 2, WIN_R_YC, (Z_END + WIN_R_Z0) / 2]}>
+        <planeGeometry args={[WIN_R_Z0 - Z_END, WIN_R_YH]} />
+        <meshStandardMaterial color={WALL} roughness={0.85} />
+      </mesh>
+      {/* Entrance section — window to entrance */}
+      <mesh rotation={[0, -Math.PI / 2, 0]}
+            position={[W / 2, WIN_R_YC, (WIN_R_Z1 + Z_START) / 2]}>
+        <planeGeometry args={[Z_START - WIN_R_Z1, WIN_R_YH]} />
+        <meshStandardMaterial color={WALL} roughness={0.85} />
+      </mesh>
+
+      {/* ── Patient room window frame — dark metal ─────────────── */}
+      {/* Top bar */}
+      <mesh position={[W / 2 - 0.026, WIN_R_YTOP + 0.022, WIN_R_ZC]}>
+        <boxGeometry args={[0.048, 0.044, WIN_R_ZH * 2 + 0.09]} />
+        <meshStandardMaterial color={MULL} roughness={0.28} metalness={0.5} />
+      </mesh>
+      {/* Bottom bar */}
+      <mesh position={[W / 2 - 0.026, WIN_R_YBOT - 0.022, WIN_R_ZC]}>
+        <boxGeometry args={[0.048, 0.044, WIN_R_ZH * 2 + 0.09]} />
+        <meshStandardMaterial color={MULL} roughness={0.28} metalness={0.5} />
+      </mesh>
+      {/* Left jamb (deep side, WIN_R_Z0) */}
+      <mesh position={[W / 2 - 0.026, WIN_R_YC, WIN_R_Z0 - 0.022]}>
+        <boxGeometry args={[0.048, WIN_R_YH + 0.088, 0.044]} />
+        <meshStandardMaterial color={MULL} roughness={0.28} metalness={0.5} />
+      </mesh>
+      {/* Right jamb (entrance side, WIN_R_Z1) */}
+      <mesh position={[W / 2 - 0.026, WIN_R_YC, WIN_R_Z1 + 0.022]}>
+        <boxGeometry args={[0.048, WIN_R_YH + 0.088, 0.044]} />
+        <meshStandardMaterial color={MULL} roughness={0.28} metalness={0.5} />
+      </mesh>
+      {/* Glass pane */}
+      <mesh rotation={[0, -Math.PI / 2, 0]}
+            position={[W / 2 - 0.003, WIN_R_YC, WIN_R_ZC]}>
+        <planeGeometry args={[WIN_R_ZH * 2, WIN_R_YH]} />
+        <meshStandardMaterial color="#b8d8e8" transparent opacity={0.07}
+          roughness={0.02} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* ── Patient room ───────────────────────────────────────── */}
+      <PatientRoom />
+
+      {/* ── End wall ──────────────────────────────────────────── */}
       <mesh position={[0, H / 2, Z_END]}>
         <planeGeometry args={[W, H]} />
         <meshStandardMaterial color={WALL} roughness={0.88} />
       </mesh>
 
-      {/* Ceiling recessed panels */}
+      {/* ── Entrance wall ─────────────────────────────────────── */}
+      <mesh position={[0, H / 2, Z_START]}>
+        <planeGeometry args={[W, H]} />
+        <meshStandardMaterial color={WALL} roughness={0.88} />
+      </mesh>
+
+      {/* ── Baseboards ────────────────────────────────────────── */}
+      <mesh position={[-W / 2 + 0.025, 0.065, MID_Z]}>
+        <boxGeometry args={[0.05, 0.13, L]} />
+        <meshStandardMaterial color={BASE} roughness={0.7} />
+      </mesh>
+      <mesh position={[W / 2 - 0.025, 0.065, MID_Z]}>
+        <boxGeometry args={[0.05, 0.13, L]} />
+        <meshStandardMaterial color={BASE} roughness={0.7} />
+      </mesh>
+      <mesh position={[0, 0.065, Z_END + 0.025]}>
+        <boxGeometry args={[W, 0.13, 0.05]} />
+        <meshStandardMaterial color={BASE} roughness={0.7} />
+      </mesh>
+
+      {/* ── Ceiling panels ────────────────────────────────────── */}
       {panelZs.map((z) => <CeilingPanel key={z} z={z} />)}
 
-      {/* Glass curtain wall + OR room */}
-      <GlassCurtainWall />
+      {/* ── OR room ───────────────────────────────────────────── */}
       <ORRoom />
 
-      {/* Observation window + patient room */}
-      <PatientRoom />
+      {/* ── Handrails — cylindrical, 1 m height, split at windows ─ */}
+      <Handrail side="left"  z0={Z_END}    z1={WIN_L_Z0} />
+      <Handrail side="left"  z0={WIN_L_Z1} z1={Z_START}  />
+      <Handrail side="right" z0={Z_END}    z1={WIN_R_Z0} />
+      <Handrail side="right" z0={WIN_R_Z1} z1={Z_START}  />
 
-      {/* Corridor equipment — right side */}
-      <CorridorGurney    z={-7.5} />
-      <CorridorIVStand   z={-6.2} />
+      {/* ── Corridor equipment — right wall ───────────────────── */}
+      <Gurney />
+      <Wheelchair />
 
-      {/* Handrails — both walls */}
-      <Handrail side="left" />
-      <Handrail side="right" />
+      {/* ── Hand sanitizer dispensers — right wall ─────────────── */}
+      <Sanitizer z={8.5} />
+      <Sanitizer z={1.5} />
 
-      {/* Room number signs */}
-      <RoomSign z={-1.8} side="right" />
-      <RoomSign z={4.8}  side="right" />
-
-      {/* Hand sanitizer dispensers */}
-      <Sanitizer z={7.5}  side="left" />
-      <Sanitizer z={-8.5} side="left" />
-      <Sanitizer z={8}    side="right" />
-
-      {/* Exit sign */}
-      <ExitSign z={11} />
-
-      {/* Double push doors */}
-      <HospitalDoors z={1} />
+      {/* ── Room number signs ─────────────────────────────────── */}
+      <RoomSign side="left"  z={WIN_L_Z1 + 0.22} />
+      <RoomSign side="right" z={WIN_R_Z1 + 0.22} />
     </>
   );
 }
 
-/* ─── Scene ──────────────────────────────────────────────────── */
+/* ── Scene ────────────────────────────────────────────────────── */
 function Scene({ onComplete, navigate, navVisible, skipIntro }) {
   return (
     <>
-      <ambientLight intensity={1.3} color="#f6f6f2" />
-      <Suspense fallback={null}>
-        <CorridorGeometry />
-      </Suspense>
+      <ambientLight intensity={1.5} color="#f8f8f4" />
+      <CorridorShell />
       <CameraFly onComplete={onComplete} skipIntro={skipIntro} />
       <EndWallNav visible={navVisible} onNavigate={navigate} />
     </>
   );
 }
 
-/* ─── Canvas ─────────────────────────────────────────────────── */
+/* ── Canvas ───────────────────────────────────────────────────── */
 export default function Corridor({ onAnimComplete, navigate, navVisible, skipIntro }) {
   return (
     <Canvas
@@ -760,7 +941,7 @@ export default function Corridor({ onAnimComplete, navigate, navVisible, skipInt
       gl={{ antialias: true }}
       style={{ width: "100%", height: "100%", display: "block" }}
     >
-      <color attach="background" args={["#d4d4d2"]} />
+      <color attach="background" args={["#d8d8d6"]} />
       <Scene
         onComplete={onAnimComplete}
         navigate={navigate}

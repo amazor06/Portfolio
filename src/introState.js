@@ -1,4 +1,3 @@
-// Module-level flag: true within an SPA session after the intro plays,
-// reset to false on every page refresh (JS runtime restarts).
-export let corridorHasPlayed = false;
-export function markCorridorPlayed() { corridorHasPlayed = true; }
+const SESSION_KEY = "corridorPlayed";
+export const corridorHasPlayed = () => sessionStorage.getItem(SESSION_KEY) === "1";
+export const markCorridorPlayed = () => sessionStorage.setItem(SESSION_KEY, "1");
