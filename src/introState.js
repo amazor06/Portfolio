@@ -1,3 +1,3 @@
-const SESSION_KEY = "corridorPlayed";
-export const corridorHasPlayed = () => sessionStorage.getItem(SESSION_KEY) === "1";
-export const markCorridorPlayed = () => sessionStorage.setItem(SESSION_KEY, "1");
+let _played = false;
+export const corridorHasPlayed = () => _played;
+export const markCorridorPlayed = () => { _played = true; };
