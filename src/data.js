@@ -9,7 +9,7 @@ export const personal = {
   email: "amazor@scu.edu",
   github: "https://github.com/amazor06",
   linkedin: "https://www.linkedin.com/in/amazor28/",
-  efolio: "https://your-efolio-url.scu.edu", // TEMPLATE — replace
+  efolio: "https://gcsp-efolio-qkl0hd8z3-ariels-projects-bfde3d85.vercel.app/", // TEMPLATE — replace
 };
 
 export const about = {
