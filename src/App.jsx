@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import Home from "./pages/Home";
 import ResearchPage from "./pages/ResearchPage";
 import ProjectsPage from "./pages/ProjectsPage";
@@ -70,20 +71,45 @@ function Nav() {
   );
 }
 
+/* ─── Page fade wrapper ────────────────────────────────────── */
+const pageVariants = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.3, ease: "easeInOut" } },
+  exit:    { opacity: 0, transition: { duration: 0.25, ease: "easeInOut" } },
+};
+
+function AnimatedRoutes() {
+  const location = useLocation();
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        variants={pageVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        style={{ width: "100%" }}
+      >
+        <Routes location={location}>
+          <Route path="/" element={<Home />} />
+          <Route path="/research" element={<ResearchPage />} />
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/experience" element={<ExperiencePage />} />
+          <Route path="/academics"  element={<AcademicsPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+        </Routes>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 /* ─── App ──────────────────────────────────────────────────── */
 export default function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
       <Nav />
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/research" element={<ResearchPage />} />
-        <Route path="/projects" element={<ProjectsPage />} />
-        <Route path="/experience" element={<ExperiencePage />} />
-        <Route path="/academics"  element={<AcademicsPage />} />
-        <Route path="/contact" element={<ContactPage />} />
-      </Routes>
+      <AnimatedRoutes />
     </BrowserRouter>
   );
 }
